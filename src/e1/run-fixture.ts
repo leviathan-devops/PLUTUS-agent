@@ -10,14 +10,31 @@
 // src/e1/adapters/* (absent at build start) — swap on landing.
 // Journal: the runtime src/jesl Journal (importable — used directly).
 // run: bun src/e1/run-fixture.ts [--out specs/e1-snapshot.json]
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_MACHINES } from './machines/index';
 import { Journal, runIdFor, sha256Hash, canonicalSerialize } from '../jesl/index';
 import type { LexiconData, OHLCBar, PairKey, ZoneModel } from './core/types';
+import { decodeMarketData } from './adapters/market-data-adapter.ts';
+import { OBCVEngine } from './adapters/obcv-engine.ts';
 import {
-  SYNTH_SEED, adaptBarsOrThrow, detectZonesObcv, makeLexiconData, synthBars,
+  SYNTH_SEED, makeLexiconData, synthBars,
 } from './tests/helpers';
+
+const BARS_RAW = join('/tmp', 'opencode', 'bars_raw.json');
+const obcv = new OBCVEngine();
+
+function loadRealBars(pair: PairKey, tf: '1H' | '4H'): OHLCBar[] | null {
+  if (!existsSync(BARS_RAW)) return null;
+  const raw = JSON.parse(readFileSync(BARS_RAW, 'utf8')) as Array<{
+    pair: string; timeframe: string;
+    bars: Array<{ timestamp: number; open: number; high: number; low: number; close: number }>;
+  }>;
+  const feed = raw.find((f) => f.pair === pair && f.timeframe === tf);
+  if (!feed || feed.bars.length === 0) return null;
+  const decision = feed.bars.filter((b) => b.timestamp <= ANCHOR);
+  return decodeMarketData(decision, ANCHOR);
+}
 
 const ANCHOR = 1783317600000; // spec D.4 ANALYSIS_POINT_MS
 const PAIR_CFG: Record<string, { pair: PairKey; pip: number; atr14: number; center: number; vol: number; tf: '1H' }> = {
@@ -76,13 +93,21 @@ async function main(): Promise<void> {
   for (const key of Object.keys(PAIR_CFG)) {
     const cfg = PAIR_CFG[key]!;
     let bars: OHLCBar[];
+    let barsSource: 'bars_raw' | 'synthetic';
     try {
-      bars = adaptBarsOrThrow(buildBars(cfg, SYNTH_SEED + key.length), ANCHOR);
+      const real = loadRealBars(cfg.pair, cfg.tf);
+      if (real && real.length > 0) {
+        bars = real;
+        barsSource = 'bars_raw';
+      } else {
+        bars = decodeMarketData(buildBars(cfg, SYNTH_SEED + key.length), ANCHOR);
+        barsSource = 'synthetic';
+      }
     } catch (e) {
       console.error(`[run-fixture] LOUD FAIL adapter ${key}: ${(e as Error).message}`);
       process.exit(1);
     }
-    const zones: ZoneModel[] = detectZonesObcv(bars, { pair: cfg.pair, tf: cfg.tf, pip: cfg.pip, anchorMs: ANCHOR });
+    const zones: ZoneModel[] = obcv.detect({ pair: cfg.pair, tf: cfg.tf, pip: cfg.pip, bars, atr14: cfg.atr14 });
     const data: LexiconData = makeLexiconData({
       bars, zones,
       meta: { pair: cfg.pair, anchorMs: ANCHOR, spot: bars[bars.length - 1]!.C, atr14: cfg.atr14, pip: cfg.pip, tf: cfg.tf },
@@ -103,7 +128,7 @@ async function main(): Promise<void> {
     });
     totalVerdicts += verdicts.length;
     snapshots[key] = {
-      pair: key, bars: bars.length, zones: zones.map((z) => z.id),
+      pair: key, bars: bars.length, barsSource, zones: zones.map((z) => z.id),
       zoneDetail: zones, verdicts,
     };
     journal.append({
@@ -117,8 +142,10 @@ async function main(): Promise<void> {
   const artifact = {
     meta: {
       week: '2026-07-06', analysisPointMs: ANCHOR, run,
-      barsSource: `synthetic mulberry32 seed=${SYNTH_SEED} (bars_raw.json absent — substitution recorded)`,
-      seams: ['SEAM-ADAPTER: helpers.adaptBarsOrThrow stands in for src/e1/adapters/MarketDataAdapter', 'SEAM-OBCV: helpers.detectZonesObcv stands in for src/e1/adapters/OBCVEngine', 'SEAM-ACTORS: zoneMapActor/pressureActor absent — verdicts journaled directly'],
+      barsSource: existsSync(BARS_RAW)
+        ? `decodeMarketData(bars_raw 1H t<=${ANCHOR})`
+        : `synthetic mulberry32 seed=${SYNTH_SEED} (bars_raw.json absent — substitution recorded)`,
+      seams: ['SEAM-ADAPTER: src/e1/adapters/decodeMarketData', 'SEAM-OBCV: src/e1/adapters/OBCVEngine', 'SEAM-ACTORS: zoneMapActor/pressureActor — verdicts journaled directly'],
       journalChainValid: journal.verifyChain(run),
     },
     snapshots,

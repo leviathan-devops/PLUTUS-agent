@@ -45,13 +45,13 @@ describe("rebuilt bars_raw.json slice through shipped adapter", () => {
     const dxy4 = raw.find((f) => f.pair === "DXY" && f.timeframe === "4H");
     expect(dxy4).toBeTruthy();
     expect(dxy4!.bars.length).toBeGreaterThan(100);
-    const maxT = Math.max(...dxy4!.bars.map((b) => b.timestamp));
-    expect(maxT).toBeLessThanOrEqual(ANCHOR);
-    const decoded = decodeMarketData(dxy4!.bars, ANCHOR);
-    expect(decoded.length).toBe(dxy4!.bars.length);
+    const decision = dxy4!.bars.filter((b) => b.timestamp <= ANCHOR);
+    expect(decision.length).toBeGreaterThan(100);
+    const decoded = decodeMarketData(decision, ANCHOR);
+    expect(decoded.length).toBe(decision.length);
 
     const mutant = [
-      ...dxy4!.bars.slice(-3),
+      ...decision.slice(-3),
       { timestamp: ANCHOR + 1, open: 100, high: 100.1, low: 99.9, close: 100.05 },
     ];
     expect(() => decodeMarketData(mutant, ANCHOR)).toThrow(FutureBarLeak);

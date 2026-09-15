@@ -17,6 +17,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export const ANALYSIS_POINT_MS = 1_783_317_600_000; // 2026-07-06T06:00:00Z
+/** Friday NY close — outcome-sim horizon only. Decision path still gates at ANALYSIS_POINT_MS. */
+export const WEEK_CLOSE_MS = 1_783_702_800_000;
 
 const VIBE_4H =
   "/home/leviathan/OPENCODE_WORKSPACE/Shared Workspace Context/Trident_Agent/Active_Projects/Plutus_Vibe_Agent/fixtures/weeks/2026-07-06/4H";
@@ -108,9 +110,14 @@ export function assertNoForgedTf(feeds: RawFeed[]): void {
     if ((f.timeframe === "30m" || f.timeframe === "15m") && f.bars.length > 0) {
       throw new Error(`forged ${f.timeframe} bars for ${f.pair}: ${f.bars.length}`);
     }
+  }
+}
+
+export function assertClipped(feeds: RawFeed[], untilMs: number): void {
+  for (const f of feeds) {
     for (const b of f.bars) {
-      if (b.timestamp > ANALYSIS_POINT_MS) {
-        throw new Error(`future bar leaked into feed ${f.pair} ${f.timeframe} t=${b.timestamp}`);
+      if (b.timestamp > untilMs) {
+        throw new Error(`bar past untilMs in ${f.pair} ${f.timeframe} t=${b.timestamp} until=${untilMs}`);
       }
     }
   }
@@ -125,15 +132,29 @@ function parseOut(argv: string[]): string {
   return flag ? flag.slice("--out=".length) : defaultOut();
 }
 
+function parseUntil(argv: string[]): number {
+  const flag = argv.find((a) => a.startsWith("--until="));
+  if (!flag) return ANALYSIS_POINT_MS;
+  const v = flag.slice("--until=".length);
+  if (v === "decision" || v === "anchor") return ANALYSIS_POINT_MS;
+  if (v === "week") return WEEK_CLOSE_MS;
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new Error(`bad --until=${v}`);
+  return n;
+}
+
 export function writeBarsRaw(outPath: string, feeds: RawFeed[]): void {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(feeds));
 }
 
 if (import.meta.main) {
-  const out = parseOut(process.argv.slice(2));
-  const feeds = buildFeeds();
+  const argv = process.argv.slice(2);
+  const out = parseOut(argv);
+  const untilMs = parseUntil(argv);
+  const feeds = buildFeeds(untilMs);
   assertNoForgedTf(feeds);
+  assertClipped(feeds, untilMs);
   writeBarsRaw(out, feeds);
   const maxT = Math.max(0, ...feeds.flatMap((f) => f.bars.map((b) => b.timestamp)));
   const n = feeds.reduce((s, f) => s + f.bars.length, 0);
@@ -144,6 +165,7 @@ if (import.meta.main) {
       bars: n,
       maxTimestamp: maxT,
       maxIso: new Date(maxT).toISOString(),
+      untilMs,
       anchorMs: ANALYSIS_POINT_MS,
       gap30m15m: true,
     }),

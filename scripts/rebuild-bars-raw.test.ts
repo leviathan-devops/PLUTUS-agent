@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
   ANALYSIS_POINT_MS,
+  WEEK_CLOSE_MS,
+  assertClipped,
   assertNoForgedTf,
   buildFeeds,
 } from "./rebuild-bars-raw.ts";
@@ -22,6 +24,17 @@ describe("rebuild-bars-raw shipped ingest", () => {
         expect(f.bars.every((b) => b.timestamp <= ANALYSIS_POINT_MS)).toBe(true);
       }
     }
+    expect(() => assertNoForgedTf(feeds)).not.toThrow();
+    expect(() => assertClipped(feeds, ANALYSIS_POINT_MS)).not.toThrow();
+  });
+
+  test("week until includes post-anchor 1H for outcome sim; still no forged 30m/15m", () => {
+    const feeds = buildFeeds(WEEK_CLOSE_MS);
+    const maxT = Math.max(0, ...feeds.flatMap((f) => f.bars.map((b) => b.timestamp)));
+    expect(maxT).toBeGreaterThan(ANALYSIS_POINT_MS);
+    expect(maxT).toBeLessThanOrEqual(WEEK_CLOSE_MS);
+    const h1 = feeds.find((f) => f.pair === "DXY" && f.timeframe === "1H")!;
+    expect(h1.bars.some((b) => b.timestamp > ANALYSIS_POINT_MS)).toBe(true);
     expect(() => assertNoForgedTf(feeds)).not.toThrow();
   });
 });
