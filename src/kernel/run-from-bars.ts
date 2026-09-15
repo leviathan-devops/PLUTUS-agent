@@ -22,7 +22,7 @@ import { computePressure } from "./l2-pressure.ts";
 import { computeFib } from "./l3-fib.ts";
 import { computeCascade, type CascadeDesignation } from "./l4-cascade.ts";
 import { computeConfluence } from "./l5-ti-graph.ts";
-import { computeTrades, type TradeProjection } from "./trade-computer.ts";
+import { computeTrades, RRR_FLOOR, type TradeProjection } from "./trade-computer.ts";
 import { KernelJournal } from "./journal.ts";
 
 export const ANALYSIS_POINT_MS = 1_783_317_600_000;
@@ -119,11 +119,14 @@ function pickOriented(
   throw new V5PathError(`no S/D pair with demand.top < supply.bottom (S=${supplies.length} D=${demands.length})`);
 }
 
-function rrFromZones(supply: ZoneModel, demand: ZoneModel, pip: number): number {
+export function rrFromZones(supply: ZoneModel, demand: ZoneModel, pip: number): number {
   const stop = Math.max((supply.top - supply.bottom) / pip, 4);
   const target = Math.abs(supply.bottom - demand.top) / pip;
   const rr = target / stop;
-  return Number.isFinite(rr) && rr >= 2.5 ? Math.round(rr * 100) / 100 : 3;
+  if (!Number.isFinite(rr) || rr < RRR_FLOOR) {
+    throw new V5PathError(`RRR ${rr} below floor ${RRR_FLOOR} — refuse, do not coerce`);
+  }
+  return Math.round(rr * 100) / 100;
 }
 
 export interface V5PairResult {

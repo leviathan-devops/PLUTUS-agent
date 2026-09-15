@@ -187,6 +187,7 @@ export const pressureMachine = setup({
       on: {
         BATTLE_RESOLVED: [
           { target: "BROKEN", guard: "isPassThrough", actions: "recordSweep" },
+          { actions: "recordDefense", guard: "isDefenseBattle" },
           { actions: "recordSweep" },
         ],
         ZFP_MEASURED: { actions: "recordZfp" },

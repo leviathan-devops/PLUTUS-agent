@@ -415,10 +415,15 @@ const plutusPipelineHarvest = tool({
         if (result.error) {
           log.info(`harvest ${result.pair} ${result.timeframe}: ERROR — ${result.error}`);
         }
-        // Temporal filter: keep bars at or before the anchor
+        // Temporal filter: keep bars at or before the anchor. Empty after
+        // filter is a loud miss — never fall back to unfiltered future bars.
         const filtered = bars.filter((b) => b.timestamp <= ctx.temporalAnchor + 60_000);
-        // Fallback: if filter nukes everything (backtesting past week), use ALL bars
-        ohlcByPairTf[result.pair][result.timeframe] = (filtered.length > 0 ? filtered : bars) as OHLCBar[];
+        if (filtered.length === 0 && bars.length > 0) {
+          log.info(
+            `harvest ${result.pair} ${result.timeframe}: FUTURE_BAR_LEAK — ${bars.length} bars after anchor, keeping empty`,
+          );
+        }
+        ohlcByPairTf[result.pair][result.timeframe] = filtered as OHLCBar[];
       }
 
       // Primary OHLC for Engine 1 = 4H bars. Spot = last 4H close.

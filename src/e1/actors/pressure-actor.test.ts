@@ -73,6 +73,19 @@ describe("pressureActor", () => {
     expect(r.value).toBe("FORTRESS")
   })
 
+  test("FORTRESS records a later defense as defenseCount, not a sweep", () => {
+    const r = run("30m", [
+      touch("BODY_DEFEND", T(1)),
+      touch("WICK_REJECT", T(2)),
+      touch("BODY_DEFEND", T(3)),
+      touch("WICK_REJECT", T(4)),
+      touch("BODY_DEFEND", T(5)),
+    ])
+    expect(r.value).toBe("FORTRESS")
+    expect(r.ctx.defenseCount).toBe(5)
+    expect(r.ctx.reactionCount).toBe(0)
+  })
+
   test("PASS_THROUGH from VIRGIN -> BROKEN", () => {
     const r = run("1H", [touch("PASS_THROUGH", T(1))])
     expect(r.value).toBe("BROKEN")

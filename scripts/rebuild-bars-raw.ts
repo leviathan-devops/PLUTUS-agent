@@ -6,12 +6,17 @@
  * 1H  ← Plutus_Air_Agent   weeks/2026-07-06/1H/{DXY,EURUSD,GBPUSD}.csv
  * 30m/15m ← documented GAP (empty bars + error). NEVER aggregate 1H→4H/30m.
  *
- * Clip: every written bar.timestamp <= ANALYSIS_POINT_MS (1783317600000).
- * Future rows in the CSV are dropped at ingest (decision snapshot), not forged.
+ * --until=decision (default): every written bar.timestamp <= ANALYSIS_POINT_MS.
+ * --until=week: clip at WEEK_CLOSE_MS for outcome sim / G8 "fixture beyond anchor".
+ * Decision path (gateBars / decodeMarketData) still throws FutureBarLeak on t>anchor.
+ * Default --out is /tmp/opencode/bars_raw.json. LIVE golden feed is the week file
+ * (SC-5 G8 + outcome). Write a sibling with --until=decision --out=...decision.json
+ * to prove the clipped snapshot (max_t === ANALYSIS_POINT_MS).
  *
  * Usage:
  *   bun scripts/rebuild-bars-raw.ts
- *   bun scripts/rebuild-bars-raw.ts --out=/path/bars_raw.json
+ *   bun scripts/rebuild-bars-raw.ts --until=week
+ *   bun scripts/rebuild-bars-raw.ts --until=decision --out=/tmp/opencode/bars_raw.decision.json
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
