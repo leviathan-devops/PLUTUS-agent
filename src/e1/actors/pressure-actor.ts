@@ -149,7 +149,7 @@ export const pressureMachine = setup({
       },
     },
     ACTIVE_1: {
-      entry: assign({ state: "ACTIVE_1" as PressureState }),
+      entry: assign({ state: "ACTIVE-1" }),
       on: {
         BATTLE_RESOLVED: [
           { target: "BROKEN", guard: "isPassThrough", actions: "recordSweep" },
@@ -160,7 +160,7 @@ export const pressureMachine = setup({
       },
     },
     ACTIVE_2: {
-      entry: assign({ state: "ACTIVE_2" as PressureState }),
+      entry: assign({ state: "ACTIVE-2" }),
       on: {
         BATTLE_RESOLVED: [
           { target: "BROKEN", guard: "isPassThrough", actions: "recordSweep" },

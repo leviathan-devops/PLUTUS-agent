@@ -14,14 +14,17 @@ import { largeOb } from '../core/engine';
 import type { LexiconData, ZoneModel } from '../core/types';
 import { VALID_ACTIONS, VALID_INTENTS, makeLexiconData, synthBars } from './helpers';
 
-const ANCHOR: number = (golden.meta as { analysisPointMs: number }).analysisPointMs;
+// golden-week.json is the frozen W0 fixture — shape pinned once here, all reads below are typed.
+const GFIX = golden as unknown as { meta: { analysisPointMs: number; week: string }; oracle: Record<string, { rows: OracleRow[] }>; mondayConvergence: { set: unknown[] } };
+const ANCHOR: number = GFIX.meta.analysisPointMs;
+const WEEK: string = GFIX.meta.week;
 const PIP = 0.0001;
 const ATR = 0.0006;
 
 interface OracleRow { n: number; day: string; dir: string; shape: string; e: number; sl: number; tp: number; rrr: number; }
 
 function rowsOf(pair: 'eurusd' | 'gbpusd'): OracleRow[] {
-  return ((golden.oracle as any)[pair].rows as OracleRow[]);
+  return GFIX.oracle[pair]!.rows;
 }
 const ALL_ROWS: Array<OracleRow & { pair: string }> = [
   ...rowsOf('eurusd').map((r) => ({ ...r, pair: 'EUR/USD' })),
@@ -65,7 +68,7 @@ function dataForRow(row: OracleRow & { pair: string }, idx: number): LexiconData
     .filter((b) => b.t <= ANCHOR);
   return makeLexiconData({
     bars, zones: [zone],
-    meta: { pair: row.pair as LexiconData['meta']['pair'], anchorMs: ANCHOR, spot: row.e, candidateZoneId: zone.id, atr14: ATR, pip: PIP },
+    meta: { pair: row.pair as LexiconData['meta']['pair'], week: WEEK, anchorMs: ANCHOR, spot: row.e, candidateZoneId: zone.id, atr14: ATR, pip: PIP },
   });
 }
 
@@ -167,7 +170,7 @@ describe('golden spot checks (the mission rows)', () => {
         classification: 'BoM', formationMs: jun22 - 86400_000, originIdx: 0,
         bw: 3.2, bf: 0.7, prior: 'OPPOSITE', tf: '1H', zfp: 0.55,
       }],
-      meta: { anchorMs: ANCHOR, spot: 1.142, candidateZoneId: origin.id, atr14: ATR, pip: PIP },
+      meta: { pair: 'EUR/USD', week: WEEK, anchorMs: ANCHOR, spot: 1.142, candidateZoneId: origin.id, atr14: ATR, pip: PIP },
     });
     expect(largeOb(d, origin)).toBe(true);
     const r = zoneClassificationMachine.classify({ data: d });

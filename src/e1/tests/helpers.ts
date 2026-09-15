@@ -156,12 +156,12 @@ export function baseMeta(over: Partial<LexiconData['meta']> = {}): LexiconData['
   };
 }
 
-export function makeLexiconData(p: Partial<LexiconData> = {}): LexiconData {
+export function makeLexiconData(p: Partial<Omit<LexiconData, 'meta'>> & { meta?: Partial<LexiconData['meta']> } = {}): LexiconData {
+  const { meta, ...rest } = p;
   return {
     bars: [], zones: [], rungs: [], shapeChain: [],
     lqzMatrix: { table: [] }, e1: {}, e2: {},
-    meta: baseMeta(p.meta as Partial<LexiconData['meta']> | undefined),
-    ...p,
-    meta: baseMeta(p.meta as Partial<LexiconData['meta']> | undefined),
+    ...rest,
+    meta: baseMeta(meta),
   };
 }

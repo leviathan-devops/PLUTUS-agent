@@ -60,7 +60,7 @@ describe("pressureActor", () => {
     const r = run("4H", [sweep(T(1)), sweep(T(2)), sweep(T(3))])
     expect(r.value).toBe("ACTIVE_2")
     expect(r.ctx.reactionCount).toBe(3)
-    expect(r.ctx.state).toBe("ACTIVE_2")
+    expect(r.ctx.state).toBe("ACTIVE-2")
   })
 
   test("4 defenses with zero sweeps -> FORTRESS", () => {

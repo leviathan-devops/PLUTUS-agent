@@ -17,7 +17,7 @@
 
 import { assign, createActor, setup } from "xstate"
 import type { ActorRefFrom } from "xstate"
-import type { LexiconVerdict, PressureState, Rung, ZoneModel } from "../core/types.ts"
+import type { LexiconVerdict, PressureState, Rung, ZoneMapSnapshot, ZoneModel } from "../core/types.ts"
 export type { LexiconVerdict, ZoneMapSnapshot } from "../core/types.ts"
 
 

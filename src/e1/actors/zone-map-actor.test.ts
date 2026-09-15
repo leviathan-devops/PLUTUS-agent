@@ -43,7 +43,7 @@ describe("zoneMapActor", () => {
       expect(a.getSnapshot().value).toBe("empty")
       a.send({ type: "ZONE_ADDED", zone: zone("z1") })
       expect(a.getSnapshot().value).toBe("populating")
-      expect(readZoneMapSnapshot(a).zones.map((z) => z.id)).toEqual(["z1"])
+      expect(readZoneMapSnapshot(a).zones.map((z: ZoneModel) => z.id)).toEqual(["z1"])
     } finally {
       a.stop()
     }
@@ -76,7 +76,7 @@ describe("zoneMapActor", () => {
       expect(snap.status).toBe("done")
       const out = snap.output as ReturnType<typeof readZoneMapSnapshot>
       expect(out.zones.length).toBe(1)
-      expect(out.verdicts.map((v) => v.pattern)).toEqual(["zone-classification:MoM"])
+      expect(out.verdicts.map((v: LexiconVerdict) => v.pattern)).toEqual(["zone-classification:MoM"])
     } finally {
       a.stop()
     }

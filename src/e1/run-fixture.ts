@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     const zones: ZoneModel[] = obcv.detect({ bars, pair: cfg.pair, tf: cfg.tf, pip: cfg.pip, atr14: cfg.atr14 });
     const data: LexiconData = makeLexiconData({
       bars, zones,
-      meta: { pair: cfg.pair, anchorMs: ANCHOR, spot: bars[bars.length - 1]!.C, atr14: cfg.atr14, pip: cfg.pip, tf: cfg.tf },
+      meta: { pair: cfg.pair, week: '2026-07-06', anchorMs: ANCHOR, spot: bars[bars.length - 1]!.C, atr14: cfg.atr14, pip: cfg.pip, tf: cfg.tf },
     });
     // STAGE 3 — the six lexicon machines over the live data (predicates read LMV/OBCV outputs, never fixtures).
     const verdicts: LexiconVerdict[] = DEFAULT_MACHINES.map((m) => {
