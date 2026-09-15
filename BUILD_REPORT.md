@@ -83,3 +83,18 @@ Not ship. All of the above leave W9 blocked. Nested main/grok untouched.
 | L4 no-DXY adversarial | PASS 2/2 (`-t L4` across kernel) |
 
 Not ship. W9 stays blocked on SC-21 2/5 + lmv-fx 13/15 NEEDS-LTF. Nested main/grok untouched.
+
+## 2026-09-15 SC EVIDENCE round 3 (isolated gates, HEAD 3a49723, orch runs)
+
+| gate | result |
+|---|---|
+| SC-1 boundary tsc | PASS — `bun run typecheck` → `$ tsc --noEmit` empty |
+| SC-3 run-fixture live | PASS — `bun src/e1/run-fixture.ts` → pairs=3 zones=6 verdicts=18 zonesWithoutVerdicts=0 chainValid=true |
+| SC-5 FUTURE_BAR_LEAK | PASS 16/0 (future-bar-leak.test.ts) |
+| SC-14 orphans | PASS 26/0 (assembler.test.ts incl. ORPHAN_ID + CARD_ORPHAN_ID rows) |
+| SC-23 validator | **MISSING-FILE** — `src/kernel/report-validator.ts` absent; W7 landed `src/report/` + `src/kernel/report-{render,model,rules}.ts` instead (PASS 70/0 across render/rules/model suites). SC-23-as-named NOT evidenced |
+| SC-24 conformance | NOT runnable (missing `../graph/client.js`) |
+| SC-27 killed patterns | BENIGN — only `killedDuplicates`/`killed` cascade-loop guards (`cascade-machine.ts:21,127-138`, `l4-cascade.ts:124`); no decommissioned-heuristic residue found |
+| SC-21 Monday | **FAIL 2/5** (unchanged) |
+
+Not ship. W9 stays blocked. Nested main/grok untouched.
