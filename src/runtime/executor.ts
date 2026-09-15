@@ -8,7 +8,7 @@
  */
 
 import { Context, Effect, Exit, Layer } from "effect"
-import { CardInvalid } from "./errors.ts"
+import { CardInvalid, JournalCorrupt } from "./errors.ts"
 import { Journal } from "./journal.ts"
 import { NodeRegistry } from "./node-registry.ts"
 
@@ -29,12 +29,12 @@ export interface NodeTask {
 export interface NodeOutcome {
   readonly id: string
   readonly kind: string
-  readonly exit: Exit.Exit<unknown, CardInvalid>
+  readonly exit: Exit.Exit<unknown, CardInvalid | JournalCorrupt>
 }
 
 export class Executor extends Context.Service<Executor, {
   /** Run one task through the registry with Activity journaling. */
-  readonly runOne: (task: NodeTask) => Effect.Effect<unknown, CardInvalid, never>
+  readonly runOne: (task: NodeTask) => Effect.Effect<unknown, CardInvalid | JournalCorrupt>
   /**
    * Run a ready set with KERNEL_CONCURRENCY fan-out. Never fails on a single
    * child's error — returns one outcome per task (E6 allSettled semantics).
@@ -42,13 +42,13 @@ export class Executor extends Context.Service<Executor, {
   readonly runBatch: (
     tasks: ReadonlyArray<NodeTask>
   ) => Effect.Effect<ReadonlyArray<NodeOutcome>, never>
-}>("Executor") {}
+}>()("Executor") {}
 
 export const makeExecutor = Effect.gen(function*() {
   const journal = yield* Journal
   const registry = yield* NodeRegistry
 
-  const runOne = (task: NodeTask): Effect.Effect<unknown, CardInvalid, never> =>
+  const runOne = (task: NodeTask): Effect.Effect<unknown, CardInvalid | JournalCorrupt> =>
     Effect.gen(function*() {
       if (task.id.length === 0) {
         return yield* new CardInvalid({ message: "executor refused: empty task id" })

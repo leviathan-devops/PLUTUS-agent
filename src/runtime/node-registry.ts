@@ -37,7 +37,7 @@ export class NodeRegistry extends Context.Service<NodeRegistry, {
   readonly kinds: () => Effect.Effect<ReadonlySet<string>>
   /** Number of registered impls. */
   readonly size: () => Effect.Effect<number>
-}>("NodeRegistry") {}
+}>()("NodeRegistry") {}
 
 export const makeNodeRegistry = Effect.gen(function*() {
   const ref = yield* Ref.make<ReadonlyMap<string, NodeImpl>>(new Map())

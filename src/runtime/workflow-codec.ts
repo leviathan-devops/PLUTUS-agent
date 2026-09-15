@@ -25,7 +25,7 @@ export type WorkflowEdge = typeof WorkflowEdgeSchema.Type
 
 export const WorkflowDocSchema = Schema.Struct({
   name: Schema.String,
-  tier: Schema.optional(Schema.Literal("T1", "T2", "T3")),
+  tier: Schema.optional(Schema.Literals(["T1", "T2", "T3"])),
   nodes: Schema.Array(WorkflowNodeSchema),
   edges: Schema.optional(Schema.Array(WorkflowEdgeSchema))
 })
@@ -80,7 +80,7 @@ export class WorkflowCodec extends Context.Service<WorkflowCodec, {
   ) => Effect.Effect<ValidWorkflow, CardInvalid>
   /** Encode a WorkflowDoc back to plain JSON (for the journal / artifacts). */
   readonly encode: (doc: WorkflowDoc) => Effect.Effect<unknown>
-}>("WorkflowCodec") {}
+}>()("WorkflowCodec") {}
 
 export const makeWorkflowCodec = Effect.gen(function*() {
   const decode = (input: unknown): Effect.Effect<WorkflowDoc, CardInvalid> =>

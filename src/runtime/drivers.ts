@@ -21,7 +21,7 @@
 import { promises as fs } from "node:fs"
 import { Context, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
-import { AetherDegrade, CardInvalid } from "./errors.ts"
+import { AetherDegrade, CardInvalid, JournalCorrupt } from "./errors.ts"
 import { Journal, JournalEntry, JournalMemoryLive, makeMemoryJournal } from "./journal.ts"
 import { NodeRegistry, NodeRegistryLive } from "./node-registry.ts"
 import { Executor, ExecutorLive } from "./executor.ts"
@@ -31,19 +31,19 @@ import { WorkflowCodec, WorkflowCodecLive } from "./workflow-codec.ts"
 
 export class ToolClient extends Context.Service<ToolClient, {
   readonly invoke: (tool: string, args: unknown) => Effect.Effect<unknown, AetherDegrade>
-}>("ToolClient") {}
+}>()("ToolClient") {}
 
 export class SubagentRunner extends Context.Service<SubagentRunner, {
   readonly dispatch: (task: string, input: unknown) => Effect.Effect<unknown, AetherDegrade>
-}>("SubagentRunner") {}
+}>()("SubagentRunner") {}
 
 export class LlmClient extends Context.Service<LlmClient, {
   readonly complete: (prompt: string) => Effect.Effect<string, AetherDegrade>
-}>("LlmClient") {}
+}>()("LlmClient") {}
 
 export class HooksBus extends Context.Service<HooksBus, {
   readonly emit: (event: string, payload: unknown) => Effect.Effect<void, AetherDegrade>
-}>("HooksBus") {}
+}>()("HooksBus") {}
 
 const STUB_W7 = "host service stub — real wiring lands W7"
 
@@ -96,7 +96,7 @@ const readJournalFile = (path: string): Effect.Effect<ReadonlyArray<JournalEntry
   })
 
 /** File-backed Journal layer: seeds from JSONL on build, appends through. */
-export const makeJournalFileLive = (path: string): Layer.Layer<Journal, CardInvalid> =>
+export const makeJournalFileLive = (path: string): Layer.Layer<Journal, CardInvalid | JournalCorrupt> =>
   Layer.effect(
     Journal,
     Effect.gen(function*() {
@@ -118,9 +118,7 @@ export const makeJournalFileLive = (path: string): Layer.Layer<Journal, CardInva
         all: () => mem.all(),
         checkIntegrity: () => mem.checkIntegrity(),
         corruptForTest: (_seq, _patch) =>
-          Effect.fail(
-            new CardInvalid({ message: "corruptForTest refused on file-backed journal" })
-          ) as Effect.Effect<void>
+          Effect.fail(new CardInvalid({ message: "corruptForTest refused on file-backed journal" }))
       })
     })
   )
@@ -163,7 +161,7 @@ export const KernelMemoryLive: Layer.Layer<Journal | WorkflowCodec | NodeRegistr
 /** CliLive — bun-run execution edge for workflows (file journal at the given path). */
 export const makeCliLive = (
   journalPath: string
-): Layer.Layer<Journal | WorkflowCodec | NodeRegistry | Executor, CardInvalid> =>
+): Layer.Layer<Journal | WorkflowCodec | NodeRegistry | Executor, CardInvalid | JournalCorrupt> =>
   buildKernel(makeJournalFileLive(journalPath))
 
 /**
@@ -178,7 +176,7 @@ export const makeOpenCodeLive = (
   journalPath: string
 ): Layer.Layer<
   Journal | WorkflowCodec | NodeRegistry | Executor | ToolClient | SubagentRunner | LlmClient | HooksBus,
-  CardInvalid
+  CardInvalid | JournalCorrupt
 > =>
   Layer.mergeAll(
     makeCliLive(journalPath),

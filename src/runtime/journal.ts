@@ -12,7 +12,7 @@
 
 import { createHash } from "node:crypto"
 import { Context, Effect, Layer, Ref, Schema } from "effect"
-import { JournalCorrupt } from "./errors.ts"
+import { CardInvalid, JournalCorrupt } from "./errors.ts"
 
 /** A single committed journal row. */
 export const JournalEntrySchema = Schema.Struct({
@@ -43,7 +43,7 @@ const hashEntry = (seq: number, causationId: string, kind: string, payload: stri
 /** The Journal service interface (Context.Tag). */
 export class Journal extends Context.Service<Journal, {
   /** Append one row; returns the committed entry with chain hashes. */
-  readonly append: (input: JournalAppendInput) => Effect.Effect<JournalEntry, JournalCorrupt>
+  readonly append: (input: JournalAppendInput) => Effect.Effect<JournalEntry, JournalCorrupt | CardInvalid>
   /** All rows with the given causationId, in seq order. Empty array when none. */
   readonly query: (causationId: string) => Effect.Effect<ReadonlyArray<JournalEntry>>
   /** All rows in seq order. */
@@ -51,8 +51,8 @@ export class Journal extends Context.Service<Journal, {
   /** Re-hash the full chain; fails JOURNAL_CORRUPT naming the first broken seq. */
   readonly checkIntegrity: () => Effect.Effect<void, JournalCorrupt>
   /** TEST-ONLY hook: overwrite the row at seq (simulates tamper/corruption). */
-  readonly corruptForTest: (seq: number, patch: Partial<JournalEntry>) => Effect.Effect<void>
-}>("Journal") {}
+  readonly corruptForTest: (seq: number, patch: Partial<JournalEntry>) => Effect.Effect<void, CardInvalid>
+}>()("Journal") {}
 
 /** Build an in-memory Journal implementation (shared by all drivers). */
 export const makeMemoryJournal = Effect.gen(function*() {

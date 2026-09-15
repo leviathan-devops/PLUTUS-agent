@@ -238,7 +238,7 @@ describe("OpenCodeLive stubs", () => {
       Effect.gen(function*() {
         const llm = yield* LlmClient
         return yield* llm.complete("hi").pipe(Effect.flip)
-      }).pipe(Effect.provide(LlmStubLive)) as Effect.Effect<unknown, { _tag: string }>
+      }).pipe(Effect.provide(LlmStubLive)) as unknown as Effect.Effect<unknown, { _tag: string }>
     )
     expect((caught as { _tag: string })._tag).toBe("AETHER_DEGRADE")
   })
