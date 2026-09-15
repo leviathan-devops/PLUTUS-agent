@@ -23,3 +23,8 @@ The week-frozen accuracy gap decomposes into TWO precisely-owned findings — ne
 ## Ship-bar effect
 
 SC-25's V5-chain leg stands at **1/17** with the causal decomposition COMPLETE: harness gap closed (loop per contracts), remainder owned by (1) + (2) above, plus the unchanged Monday questions (#1 EU slot, #2 diverged-lane chaining). All four are quoted-law collisions / architecture decisions — operator precedence required; every fix path is pre-scoped in its audit.
+
+## Orch verification note (same turn, read-only hardening)
+
+The desk's dayTable claim VERIFIED first-hand with the complete edge inventory — 10 DAY_OPEN edges: SS→BS (zfp>min+marubozu) · SS→R (consolidationReversal) · BS→R (zfp∈[LO,HI]) · BS→RWL (opposingBoM+sweep) · R→WL (recoveryToStructure) · WL→SS (consolidationPhase) · RWL→BS (reverseContinuation) · WLS→SS/BS (nyResolution). The fixture chain needs **R→BS** (Thu) and **BS→WL** (Fri): absent. Near-misses R→WL / BS→RWL target different states — no token mapping rescues the walk.
+The gap is DELIBERATE and test-pinned: `src/e2/tests/shape-chain-golden.test.ts:84,90` — both steps attempted with the exact guard fields (`reverseContinuation: true`, `recoveryToStructure: true`), pinned UNCHANGED as **"the documented gap"**; the walk test prints `machine=[SS BS R … GAP(no-edge)] oracle=[SS BS R BS WL]` divergence rows. The V5 authors recorded the gap rather than inventing edges (D13-compliant). The edges' lawful guard content is unquotable from disk — question #3a requires the operator's ruling on which is canonical: the fixture's 5-token read (B.W3.5 sequence) or the B.W3.1 table (add edges) or a corrected token chain (e.g. the table's live R→WL→SS path).
