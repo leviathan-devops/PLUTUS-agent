@@ -57,3 +57,29 @@
 | e1 properties.ts 500-run | FILE NOT FOUND by bun filter (`src/e1/tests/properties.ts` not a *.test.ts name) |
 
 Not ship. All of the above leave W9 blocked. Nested main/grok untouched.
+
+## 2026-09-15 SC EVIDENCE round 2 (isolated gates, HEAD 481b54e, orch runs)
+
+| gate | result |
+|---|---|
+| SC-2 e1 properties.test.ts | PASS 24/0, 115494 expects |
+| SC-3 fixture journals snapshot | PASS 130/0 (golden-fixture.test.ts) |
+| SC-4 verdict triplets | PASS by type — `LexiconVerdict` + `ZoneMapSnapshot.verdicts` (`e1/core/types.ts:186-197`) |
+| SC-6 totality | PASS 18/0, 96 expects |
+| SC-7 no designation price | PASS — `designation-machine.ts:15` "zone IDs only", 0 price-field grep hits |
+| SC-8 side-inversion | PASS 42/0 (incl. mirrorFloor) |
+| SC-10 E2 golden hold | NOT re-runnable standalone — stands on 2026-09-14 audit |
+| SC-11 visual PNG | PASS 102/0 (8 files); chart-verifier GRADE:FAIL token present (`chart-verifier.test.ts:130-132`) |
+| SC-12 junk PNG | GAP — no junk/corrupt fixture on disk (`find` empty) |
+| SC-13 card zod | PASS 50/0 (schema+assembler rerun) |
+| SC-15 W-1 non-numeric | PASS present (`schema.test.ts:105-110`, armed assertion) |
+| SC-16 journal provenance | UNPROVEN-as-journal-chain (W9-LMVFX.md: emit rows carry only `{causationId, kind}` + payload; L-legs in `projection.metaLayerVerdicts/provenance`) |
+| SC-17/18/21 golden | **FAIL 2/5** (diag G7 verbatim, exit 1) |
+| SC-20 report sha | UNEVIDENCED standalone (ShapeBrain INFO + 0W/0L week) |
+| SC-22 f(T)=24 | PASS-by-vendor — `oracles.ts:1-11` vendored MIRROR_FLOOR N×(1+P)=24 + e2 computations 102/0 |
+| SC-24 conformance | NOT runnable (missing `../graph/client.js`, W8.md residual) |
+| SC-26 anchors | PASS in product locks — 0 hits in `src/e2/machines` + `src/kernel`; 3 hits harness-only (`diag-reasoning-chain-golden.ts:94-96`) |
+| SC-27 killed patterns | NOT re-grepped this round |
+| L4 no-DXY adversarial | PASS 2/2 (`-t L4` across kernel) |
+
+Not ship. W9 stays blocked on SC-21 2/5 + lmv-fx 13/15 NEEDS-LTF. Nested main/grok untouched.
