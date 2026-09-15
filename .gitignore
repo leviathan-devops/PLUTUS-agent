@@ -21,3 +21,6 @@ src/.trident/knowledge-graph/
 data/rejected_setups/
 *.orig
 .DS_Store
+# harness outputs (diag captures + visual evals) — evidence stays on disk, never tracked
+Visual_Evals/
+**/.captures/
