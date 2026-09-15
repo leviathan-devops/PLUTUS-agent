@@ -34,3 +34,26 @@
 **G FAIL:** G1 phantom-BoM fortress token; G3 GU divergence-record; G4 EU/DXY element oppose; G8 temporal vacuous.
 **Why no nested LQZ:** all 30m/15m n=0 in /tmp/opencode/bars_raw.json. R21 forbids 1H→30m aggregate. R29 forbids hardcoding 1.14110. Air_Agent week 2026-07-06 has only 1H CSVs.
 **Ship bar:** NOT MET. Do not stamp COMPLETE. Nested plutus/main and grok-prototype untouched.
+
+## 2026-09-15 SC EVIDENCE (isolated gates, orch runs, HEAD 34b9ed2)
+
+| gate | result |
+|---|---|
+| SC-1 tsc --noEmit | PASS (empty) |
+| SC-7 designation price fields | PASS — `DesignationEmission` zone-IDs only (designation-machine.ts:20-25) |
+| SC-26/27 anchors/killed | PASS — 0 price-anchor hits in src/e2 + src/kernel (tests excluded) |
+| e2 totality | PASS 18/0 |
+| mirror-floor | PASS 28/0 |
+| side-inversion v452 FIRE / v453 SILENT | PASS 14/0 (isolated) |
+| card zod schema + assembler | PASS 24/0 + 26/0 |
+| kernel journal + card-loader | PASS 16/0 |
+| trade-computer | PASS 26/0; L1-L5 PASS 94/0 |
+| enforcement | PASS 66/0 |
+| FUTURE_BAR_LEAK token | PASS 10/10 |
+| CARD_INVALID token | PASS 6/6 |
+| GATE-CLASS 1 report-v452 | NOT EVIDENCED — run prints ShapeBrain INFO lines + 0W/0L week; report_v452.md diff reverted |
+| diag-lmv-golden-fx | **FAIL** — ENTRIES 13/15 ≤3p; EU #2 TP Δ9.0p; EU #3 Tue SHORT Δ9.0p; GU #1 Mon LONG Δ4.0p |
+| SC-21 Monday | **FAIL 2/5** (proven, same run line as before) |
+| e1 properties.ts 500-run | FILE NOT FOUND by bun filter (`src/e1/tests/properties.ts` not a *.test.ts name) |
+
+Not ship. All of the above leave W9 blocked. Nested main/grok untouched.
