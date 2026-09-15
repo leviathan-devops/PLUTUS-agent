@@ -20,13 +20,13 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,
-    "allowImportingTsExtensions": false,
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "jsx": "preserve",
     "types": ["bun-types", "node"]
   },
-  "include": ["src/**/*.ts", "identity/**/*.md", "*.ts"],
+  "include": ["src/**/*.ts", "identity/**/*.md"],
   "exclude": [
     "node_modules",
     "dist",
