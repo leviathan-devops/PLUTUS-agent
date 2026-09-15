@@ -37,6 +37,7 @@ import { assertProjectionContract, type TradeProjection } from '../mdve/reasonin
 // pipeline context's "now" is the locked London pre-market analysis point
 // (the §2.1 anchor — the operator's temporal law), NEVER the Friday close.
 import { getAnalysisPointMs, isAnalysisPointLocked, ANALYSIS_POINT_MS } from '../mdve/temporal.js';
+import { lqzTelescopedCreatedAt, lqzTelescopedIdentity } from './lqz-telescope-id.ts';
 
 const log = new Logger('Pipeline4Engine');
 const z = tool.schema;
@@ -285,15 +286,13 @@ function appendTelescopedLqz(
   parentTf: '1H' | '30m',
 ): DXYZone[] {
   const pipValue = PIP_VALUE[pair] ?? 0.0001;
-  const now = Date.now();
-  const pairKey = pair.replace('/', '').toLowerCase();
   const result = [...allZones];
   for (let i = 0; i < rawLqz.length; i++) {
     const lqz = rawLqz[i];
     if (!lqz) continue;
     const isBuySide = lqz.side === 'BUY_SIDE';
     const zone: DXYZone = {
-      id: `${pairKey}-lqz-${lqz.side.toLowerCase()}-${i}-${now}`,
+      id: lqzTelescopedIdentity(pair, lqz.side, i, lqz.first_seen, lqz.level),
       timeframe: lqz.timeframe ?? tf,
       floor: lqz.bottom,
       ceiling: lqz.top,
@@ -307,7 +306,7 @@ function appendTelescopedLqz(
       // LQZ-specific zfp (mirrors mergeLqzWithIpZones): fresh = Hard Wall (20),
       // +5 per 2 touches beyond 3 (exhaustion), cap 60.
       zfp: Math.min(60, 20 + Math.max(0, Math.floor((lqz.touch_count - 3) / 2)) * 5),
-      createdAt: lqz.first_seen > 0 ? lqz.first_seen : now,
+      createdAt: lqzTelescopedCreatedAt(lqz.first_seen),
       lastTested: lqz.last_seen > 0 ? lqz.last_seen : null,
       sdFresh: lqz.touch_count === 0 ? '0X' : lqz.touch_count === 1 ? '1S' : lqz.touch_count === 2 ? '2X' : '3X+',
       keyLevels: [lqz.level],
@@ -658,7 +657,7 @@ const plutusPipelineZones = tool({
             confluence: pillarResult.compositeScore,
             pillars: [],
             zfp: computeZfpFromConfluence(pillarResult.compositeScore),
-            createdAt: Date.now(),
+            createdAt: ANALYSIS_POINT_MS,
             lastTested: null,
             zoneName: `IP ${lvl.price > spot ? 'Supply' : 'Demand'} ${lvl.price.toFixed(4)}`,
             sdType: 'IP',
