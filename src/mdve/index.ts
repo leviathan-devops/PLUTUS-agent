@@ -33,10 +33,25 @@ import { buildLqzMatrix, matrixLadderRungs } from './lqz-matrix.js';
 import type { Timeframe } from './lqz-matrix.js';
 import { buildLmvTable } from './lmv.js';
 import type { LmvResult, LqzZoneMatrix } from './lmv.js';
+// THE RESTING-SIDE LAW (the operator's semantics fix): the LMV-bridged
+// rungs' ZoneModel.type is reassigned by the STRUCTURE they sit in — fully
+// inside a DEMAND zone → DEMAND (buy-side liquidity), inside a SUPPLY zone
+// → SUPPLY (sell-side liquidity). The vote's verdict (the LqzMatrixEntry.
+// side) stays the separate battle-behavior dimension — only the type the
+// demandCands/supplyCands filters read is corrected by containment.
+import { classifyRungsByStructure } from './resting-side.js';
 import { buildWeeklyNarrative } from './narrative.js';
 import type { ChartModel, ChartModelOptions, LqzMatrixEntry, ZoneModel } from './types.js';
 import { MS_PER_DAY } from './util.js';
 import { stampZonePressureStates } from './zone-pressure.js';
+// THE TEMPORAL ENGINE (the operator's temporal law — the locked run-anchor
+// gate). The DEFENSIVE re-gate at the model boundary: when the run anchor is
+// locked, every timeframe input is gated again BEFORE the model consumes it
+// (belt+suspenders — a caller that forgot the runner-level gate cannot
+// smuggle future bars into the model). Idempotent — gateBars on already-
+// gated bars is a deterministic no-op. Inert when unlocked — the legacy path
+// is byte-identical.
+import { isRunAnchorLocked, gateBars } from './temporal.js';
 
 export * from './types.js';
 export { buildZoneMap, MDVE_TIMEFRAMES } from './ob-engine.js';
@@ -142,6 +157,20 @@ export function buildChartModel(
     throw new Error(`MDVE domain guard: spot must be > 0, got ${spot}`);
   }
   const pipValue = PIP_VALUE[pair] ?? PIP_VALUE_DEFAULT;
+
+  // ── THE TEMPORAL DEFENSIVE GATE (the operator's temporal law — future data
+  //    physically cannot enter the model): when the run anchor is locked,
+  //    every timeframe input is re-gated in place BEFORE the first use of the
+  //    bar arrays (the anchor loop below). Idempotent — gateBars on already-
+  //    gated bars is a no-op; the filter is deterministic. Inert when unlocked
+  //    (the legacy no-lock paths — byte-identical). ──
+  const locked = isRunAnchorLocked();
+  if (locked) {
+    bars1H = gateBars(bars1H);
+    bars4H = gateBars(bars4H);
+    bars30m = gateBars(bars30m);
+    if (bars15m) bars15m = gateBars(bars15m);
+  }
 
   // ── Anchor (deterministic — data-derived, NEVER wall-clock): the last
   //    1H bar inside the target week; falls back to the last available bar
@@ -283,6 +312,20 @@ export function buildChartModel(
     ? [...zones, ...bridgedZones.filter((bz) => !existingZoneIds.has(bz.id))]
     : zones;
 
+  // ── THE RESTING-SIDE PASS (the operator's semantics law): AFTER the zone
+  //    pool is fully assembled (the ob-engine zones + the LMV bridge + the
+  //    telescoping + the sort) and BEFORE the pool is consumed, every LMV-
+  //    bridged rung's TYPE is reassigned by the STRUCTURE it sits in (a rung
+  //    fully inside a DEMAND zone = buy-side liquidity → type DEMAND; inside
+  //    a SUPPLY zone = sell-side liquidity → type SUPPLY; the narrowest
+  //    container wins). The rungs' side (the vote's verdict — the battle
+  //    behavior) stays untouched — the type is what the demandCands/
+  //    supplyCands filters read (shape-brain.ts:727-743). The pass runs
+  //    BEFORE the E2 designation + the mirror anchor search consume the
+  //    types. Inert when the bridge emitted no rungs (no LMV-typed zones —
+  //    a defined no-op). ──
+  classifyRungsByStructure(zonesFinal);
+
   const model: ChartModel = {
     pair,
     weekStart,
@@ -372,6 +415,7 @@ function matrixZonesToZoneModels(lmv: LmvResult, pair: string): ZoneModel[] {
     confluence: 0,                    // no pillar data on the LMV lane
     refinedLabel: z.refinedLabel,
     nestedWithin: undefined,          // the ladder/nesting owns the parent links
+    side: z.side,                     // the C-2 fix: the battle vote carried for the resting-side conflict rule
   }));
 }
 

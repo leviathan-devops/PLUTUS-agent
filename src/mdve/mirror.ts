@@ -39,10 +39,20 @@ import { classifyTouch } from './lqz-matrix.js';
 import type { LqzZoneMatrix, LmvTable } from './lmv.js';
 import { computeAtr, priceDecimals, sessionOf } from './util.js';
 import { computeSL_LMV, GOLDEN_SL_MAX_PIPS, entryPrice_LMV } from './sl-lmv.js';
+import { stripBandSuffix } from './reasoning-chain.js';
 // Wave ZR-3 (2026-08-04 — the E3 CONDITIONAL ANCHORS, the D37 killers):
 // the ZR-1 zone-relevance function (WHICH structure currently defends the
 // trade — the pressure-state switch, never a static role).
 import { computeOperativeDefense } from './zone-pressure.js';
+// W4 — THE ZONE-PRESSURE LEXICON (the semantic intent layer — the operator's
+// "pressure mechanics = semantic intent"). The lexicon's lifecycle read feeds
+// the SL-relevance switch (computeLadderStepsSL — the operative defense's
+// SHIELD_FUEL vs PRESSURE_STRUCTURE judgment + the ZR-6B confidence default:
+// the fortress/virgin lifecycle → the RR-tight 3p-outside branch; the depleted
+// → the TP-target-ONLY caution). The lexicons import only types/util — acyclic
+// (mirror already imports zone-pressure.ts, which imports only types/lmv).
+import { zonePressureLexicon } from './lexicons/index.js';
+import type { LexiconData } from './lexicons/index.js';
 import { detectHallucination, recordLayerCause } from './hallucination-detector.js';
 import type { HallucinationVerdict } from './hallucination-detector.js';
 import { writeRejectedSetup, runIdOf } from './rejected-log.js';
@@ -465,8 +475,15 @@ export function computeMirrorSL(
  * ~101.19/101.21 range-top target. Deterministic, total, cited.
  */
 export function isWeakTpWall(r: ScaffoldRung): boolean {
+  // THE 3-MITIGATION LADDER (the OVERHAUL SPEC V2 §2.5 — the C-7 kill): a
+  // wall's weakness is its MITIGATION COUNT, never a MoM-class vote or the
+  // candle-count zfp. 0x-2x (INCLUDING the swept-and-recovered 1x) = DEFENDED
+  // (the reaction ladder: UM 100% / 1x ~80% / 2x ~50% — "A zone does not
+  // immediately magically fail it takes minimum 3 mitigations before it
+  // fails"); 3x+ = the TP-target-ONLY — passable. The liquidity + the zfp are
+  // the TIEBREAK legs only.
   const weak =
-    (r.classification === 'MoM' && r.reactionCount <= 1 ? 1 : 0) +
+    ((r.reactionCount ?? 0) >= 3 ? 1 : 0) +
     (r.liquidityScore < 5 ? 1 : 0) +
     (r.zfp > 30 ? 1 : 0);
   const strong =
@@ -614,7 +631,7 @@ export function computeMirrorTP(
     const targetMid = mid(target);
     const umBetween = ladder
       .filter((r) => {
-        if (r.id === target.id || !hasRealFreshness(r) || r.reactionCount !== 0) return false;
+        if (r.id === target.id || !hasRealFreshness(r) || (r.reactionCount ?? 0) >= 3) return false;
         if (skippedCapIds.has(r.id)) return false;
         // v4.5.x R1: a WEAK wall never caps — price passes through it.
         if (weakPass && isWeakTpWall(r)) return false;
@@ -1377,6 +1394,47 @@ export interface PairNativeZoneOptions {
  * (the verified semantics); a consumed zone NEVER outranks an alive one
  * (the strength-rank is preserved, Appendix A).
  */
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §2.6 THE SANITY MACHINE (the degenerate-rung gate — the M-1 kill)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Minimum liquidity-rung width in pips = 0.5.
+ * BECAUSE: the operator's "do what make sense and aligns with the visual
+ * example" ruling — the 0.5-pip pair 101.235/101.240 MUST survive; a 0.0 width
+ * (a collapsed floor == ceiling geometry) is a DEFECT, never a level.
+ */
+const MIN_RUNG_WIDTH_PIPS = 0.5;
+/**
+ * The id-center consistency tolerance in pips = 2.
+ * BECAUSE: the ANCHOR_DOCTRINE "within ~1-2 pips = a rung" — a rung whose
+ * id-embedded level drifted > 2 pips from its band (the [1.33059-1.33059]
+ * defect: the id 21p from the band) is a degenerate geometry, not a level.
+ */
+const ID_CENTER_TOLERANCE_PIPS = 2;
+
+/**
+ * THE RUNG-VALIDITY PREDICATE (the §2.6 total-function gate — every LQZ
+ * candidate):
+ *   (1) the WIDTH GATE — a liquidity rung is a BAND; a zero-width (collapsed)
+ *       geometry is a defect, never a level (the LMV's own modal emission
+ *       produces real bands — the 3.4p [101.12-101.154]).
+ *   (2) THE ID-CENTER CONSISTENCY — the id-embedded level (LMV|pair|<center>)
+ *       must sit inside the band (the candidate id the picker attaches; the
+ *       [1.33059-1.33059] rung's id 1.33270 is 21p from its band).
+ * THE GATE LIVES IN THE PICKER, NEVER in computeSL_LMV (sl-lmv.ts FROZEN — the
+ * totality law: sl-lmv.ts:33-34 tolerates degenerate zones BY DESIGN).
+ */
+function isValidRung(z: LqzZoneMatrix, id: string, pipSize: number): boolean {
+  const widthPips = (z.top - z.bottom) / pipSize;
+  if (widthPips <= 0) return false;                    // a zero-width (collapsed) geometry is a defect
+  if (widthPips < MIN_RUNG_WIDTH_PIPS) return false;   // 0.5p — the 0.5-pip pair 101.235/101.240 survives
+  const idLevel = Number(String(id).split('|')[2]);    // the id-embedded level (LMV|pair|<center>)
+  if (Number.isFinite(idLevel) && Math.abs(idLevel - z.center) > ID_CENTER_TOLERANCE_PIPS * pipSize) return false;
+  return true;
+}
+
 export function selectPairNativeZone(
   targetLmv: LmvTable,
   targetObZones: ZoneModel[],
@@ -1496,9 +1554,21 @@ export function selectPairNativeZone(
     }
   }
   if (zoneClass === 'LQZ') {
+    const pipSize = targetSpot > 50 ? 0.01 : 0.0001; // pair identity (DXY 0.01 / FX 0.0001)
     for (const z of targetLmv) {
-      if (z.side !== wantSide || !onSide(z.center)) continue;
       const id = lmvAnchorId('LMV', z);
+      // THE RUNG-VALIDITY GATE (the §2.6 sanity machine — the M-1 kill): the
+      // candidate admission is gated on isValidRung BEFORE the side/range/
+      // exclusion filters — a collapsed (zero-width) geometry or a band whose
+      // id drifted >2p is a DEFECT, never a level. The rejection is logged
+      // LOUDLY (the DEGENERATE_RUNG_REJECTED record + the band); the selection
+      // moves to the next candidate (the honest-absence law — the spec §2.6:
+      // a forced pick on a collapsed geometry = the theatrical pick, BANNED).
+      if (!isValidRung(z, id, pipSize)) {
+        console.log('[DEGENERATE_RUNG_REJECTED]', { id, band: [z.bottom, z.top] });
+        continue;
+      }
+      if (z.side !== wantSide || !onSide(z.center)) continue;
       // v4.5.2 FIX: also check pair-prefixed format (reAnchorMirror stores
       // lmvAnchorId(targetPair, anchor) which has a DIFFERENT prefix).
       // Without this, the distribution exclusion NEVER fires → all mirrors
@@ -1646,20 +1716,20 @@ export function selectPairNativeZone(
   const mirrorDir = direction;   // the setup's actual direction (not the chain day's)
   if (mirrorDir === 'SHORT') {
     if (shapeDay?.supplyZoneId) {
-      const s = candidates.find((c) => c.id === shapeDay.supplyZoneId);
+      const s = candidates.find((c) => shapeDay.supplyZoneId != null && c.id === stripBandSuffix(shapeDay.supplyZoneId));
       if (s) return s.kind === 'LQZ' ? s.lqz! : s.ob!;
     }
     // the chain day's designation may be a demand (LONG day) — fall through to ranking
   } else if (mirrorDir === 'LONG') {
     if (shapeDay?.demandZoneId) {
-      const d = candidates.find((c) => c.id === shapeDay.demandZoneId);
+      const d = candidates.find((c) => shapeDay.demandZoneId != null && c.id === stripBandSuffix(shapeDay.demandZoneId));
       if (d) return d.kind === 'LQZ' ? d.lqz! : d.ob!;
     }
   } else if (shapeDay?.direction === 'SHORT' && shapeDay.supplyZoneId) {
-    const s = candidates.find((c) => c.id === shapeDay.supplyZoneId);
+    const s = candidates.find((c) => shapeDay.supplyZoneId != null && c.id === stripBandSuffix(shapeDay.supplyZoneId));
     if (s) return s.kind === 'LQZ' ? s.lqz! : s.ob!;
   } else if (shapeDay?.direction === 'LONG' && shapeDay.demandZoneId) {
-    const d = candidates.find((c) => c.id === shapeDay.demandZoneId);
+    const d = candidates.find((c) => shapeDay.demandZoneId != null && c.id === stripBandSuffix(shapeDay.demandZoneId));
     if (d) return d.kind === 'LQZ' ? d.lqz! : d.ob!;
   }
 
@@ -2103,13 +2173,21 @@ export function classifyZoneStrength(zone: ZoneModel): 'STRONG' | 'WEAK' | 'MIDD
 export function isStructuralWall(zone: ZoneModel): boolean {
   const p = zone.pressure;
   const lifecycle = p?.lifecycle;
-  const defensive = lifecycle === undefined || ['VIRGIN', 'ACTIVE_1', 'ACTIVE_2', 'FORTRESS'].includes(lifecycle);
-  if (!defensive) return false;                       // DEPLETED/BROKEN — pass-through
-  if (zone.id.startsWith('LMV|')) {
-    // an LQZ shelf caps ONLY with real pressure (a fortress or real confluence)
-    return lifecycle === 'FORTRESS' || zone.confluence >= 4;
+  // THE 3-MITIGATION LADDER (the OVERHAUL SPEC V2 §2.5 — the C-7 kill): the
+  // wall = the mitigation count, NEVER the candle-count zfp or a
+  // fortress/confluence gate. 0x-2x (INCLUDING the swept-and-recovered 1x) =
+  // DEFENDED; 3x+ = the TP-target-ONLY — passable ("zones usually fail on the
+  // THIRD mitigation"); the ONLY auto-death = the bare virgin MoM mid-BS/WL
+  // (the phantom-BoM fortress is EXEMPT — the EU case).
+  const mitigations = p?.mitigationCount ?? zone.reactionEvents?.length ?? 0;
+  if (mitigations >= 3) return false;                        // 3x+ — passable
+  if (lifecycle === 'VIRGIN' && zone.classification === 'MoM') {
+    // the virgin MoM: the ONLY auto-death is the virgin MoM IN THE MIDDLE OF A
+    // BS/WL pathway — the phantom-BoM fortress (the all-4) is EXEMPT; the bare
+    // virgin MoM mid-path = passable (the death zone gets pierced)
+    return false;
   }
-  return true;                                        // S/D structure — the wall
+  return true;                                               // 0x-2x — DEFENDED
 }
 
 /** The LMV rung's bridged ZoneModel (index.ts matrixZonesToZoneModels id
@@ -2136,7 +2214,17 @@ function strengthDrivenRungTp(
   const strength = zone ? classifyZoneStrength(zone) : 'MIDDLE';
   if (strength === 'STRONG') return direction === 'LONG' ? rung.bottom - 1.5 * pipValue : rung.top + 1.5 * pipValue;
   if (strength === 'WEAK') return direction === 'LONG' ? rung.top : rung.bottom;
-  return rung.defendedEdge;
+  // THE C-2 FIX (2026-08-11 — Machine C): the MIDDLE branch must return the
+  // direction-aware NEAR EDGE (the approach edge — SHORT → the demand's TOP
+  // 100.918, LONG → the supply's BOTTOM) — the SAME convention as
+  // strengthDrivenZoneTp below ("the approach edge: LONG → the supply's
+  // bottom, SHORT → the demand's top — the first price that arrives
+  // touches"). The old `rung.defendedEdge` returned the rung CENTER (the
+  // DXY LONG's golden demand LMV|DXY|100.95000: center 100.95 vs the band
+  // top 100.918) — the chained TP 100.95 pushed the LONG's entry to
+  // 101.0365 (the Δ9.1p MISS). The band's near edge is the operator's TP
+  // level ("the first price that arrives touches").
+  return direction === 'LONG' ? rung.bottom : rung.top;
 }
 
 /**
@@ -2198,7 +2286,30 @@ function mirrorConfidenceScore(
     : anchor.pressure;
   let c = 0.5;
   if (typeof shapeConf === 'number' && shapeConf >= 0.65) c += 0.2;
-  const lifecycle = pressure?.lifecycle;
+  // ── W4 — THE ZONE-PRESSURE LEXICON FEEDS THE SL-RELEVANCE SWITCH (the
+  //    operator's "pressure mechanics = semantic intent"). The lexicon
+  //    classifies the contested zone's lifecycle from its battle data; the
+  //    lifecycle intent rides the SAME +0.15 VIRGIN/ACTIVE_1 / −0.2 DEPLETED
+  //    terms the ZR-6B confidence judgment applies (the semantic layer
+  //    replacing the direct pressure read — byte-identical for the canon
+  //    lifecycle since the lexicon's classify reproduces classifyLifecycle's
+  //    recurrence; the LMV-rung 'VIRGIN' convention + the FORTRESS/BROKEN
+  //    (no-term) states pass through unchanged). The demand is the audit
+  //    trail — the SL-relevance switch's lifecycle read is now the lexicon's. ──
+  const lex = zonePressureLexicon.classify(anchorToLexiconPressure(anchor, pressure));
+  // The lexicon's intent → the canon lifecycle (the ZR-6B confidence reads the
+  // canon states). VIRGIN_DEATH_SCOPE is the virgin-untested truth with the
+  // death-rule refinement — the confidence term reads it as VIRGIN (identical
+  // to the direct pressure read); TF_HIERARCHY is a hierarchy note, not a
+  // lifecycle → the pressure state decides (the byte-identical fallback);
+  // ACTIVE disambiguates by the battle count (ACTIVE_1/ACTIVE_2).
+  const lifecycle =
+    lex.action !== 'classify' ? pressure?.lifecycle
+      : lex.intent === 'VIRGIN_DEATH_SCOPE' ? 'VIRGIN'
+      : lex.intent === 'TF_HIERARCHY' ? (pressure?.lifecycle ?? 'VIRGIN')
+      : lex.intent === 'ACTIVE'
+        ? (('reactionEvents' in anchor && anchor.reactionEvents?.length === 1) ? 'ACTIVE_1' : 'ACTIVE_2')
+        : lex.intent;
   if (lifecycle === 'VIRGIN' || lifecycle === 'ACTIVE_1') c += 0.15;
   if (lifecycle === 'DEPLETED') c -= 0.2;
   const absorption = pressure?.absorption;
@@ -2206,6 +2317,27 @@ function mirrorConfidenceScore(
   if (absorption === 'ABSORBED') c -= 0.2;
   if (shapeDay && shapeDay.direction === direction) c += 0.1;
   return Math.max(0, Math.min(1, c));
+}
+
+/** W4 — the anchor → zone-pressure-LEXICON adapter (the mirror's contested
+ *  zone, honestly mapped from its pressure state + battle data). */
+function anchorToLexiconPressure(
+  anchor: ZoneModel | LqzZoneMatrix,
+  pressure: ZoneModel['pressure'],
+): LexiconData {
+  const events = 'reactionEvents' in anchor ? anchor.reactionEvents : undefined;
+  return {
+    zoneType: 'type' in anchor && anchor.type === 'DEMAND' ? 'DEMAND' : 'SUPPLY',
+    zoneClassification: 'classification' in anchor ? (anchor.classification === 'BoM' ? 'BoM' : 'MoM') : 'MoM',
+    zoneTimeframe: 'timeframe' in anchor ? (anchor.timeframe as LexiconData['zoneTimeframe']) : '1H',
+    reactionEvents: events as LexiconData['reactionEvents'],
+    mitigationCount: pressure?.mitigationCount ?? events?.length ?? 0,
+    reactionCount: events?.length ?? pressure?.mitigationCount ?? 0,
+    freshness: ('freshness' in anchor ? anchor.freshness : undefined) as LexiconData['freshness'],
+    pierced: pressure?.pierced ?? events?.some((e) => e.pierced) ?? false,
+    strongHoldCount: events?.length ?? pressure?.mitigationCount ?? 0,
+    absorption: pressure?.absorption,
+  };
 }
 
 /**
@@ -2316,6 +2448,7 @@ function firstUnmitigatedOpposingZone(
   direction: 'LONG' | 'SHORT',
   targetModel: ChartModel,
 ): { level: number; zoneId: string } | null {
+  const pipValue = (targetModel.spot > 50 ? 0.01 : 0.0001);
   const wantType = direction === 'LONG' ? 'SUPPLY' : 'DEMAND';
   const between = targetModel.zones
     .filter((z) => {
@@ -2334,6 +2467,36 @@ function firstUnmitigatedOpposingZone(
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   if (between.length === 0) return null;
   const z = between[0]!;
+  // THE INTERNAL LQZ NEAR EDGE (the operator's TP doctrine — "the nested
+  // liquidity zone that sits inside this demand at 1.14110-1.14020 - this
+  // will be the TP edge"): the cap's LEVEL is the zone's internal LQZ near
+  // edge when one exists (the Earth within the Fire — the level the move
+  // actually reacts at), NOT the zone's band edge. The operator's EU #1 TP =
+  // the fortress demand [1.14149-1.14000]'s internal LQZ near edge 1.14110 —
+  // the band edge 1.14147 would strand the TP 3.7p off. The near edge = the
+  // SHORT's highest-top internal rung (the first contact from above) / the
+  // LONG's lowest-bottom internal rung (the first contact from below).
+  const internals = targetModel.lmv.table
+    .filter((r) =>
+      r.bottom >= z.bottom && r.top <= z.top &&
+      // THE C-3 FIX (2026-08-11 — Machine C): the W6 isValidRung gate at the
+      // path-cap's internal-rung selection. The zero-width degenerate rung
+      // [1.14095-1.14095] (the fortress's collapsed interior) sorted FIRST
+      // (the highest top) → the TP snapped to 1.14095 EVERY day → the EU
+      // LONG 1.14095 ×5 identical slop. The operator's scale law ("I will
+      // not do 1 pip on a big zone... it needs to scale") + the W6 canon:
+      // a zero-width / sub-floor-width / id-center-drifting band is NEVER
+      // the TP's reaction level — the day's designated demand
+      // [1.14027-1.14045] (the E2's demandZoneId) becomes the terminal →
+      // the per-day variation restored.
+      isValidRung(r, lmvAnchorId(targetModel.pair, r), pipValue) &&
+      (direction === 'LONG' ? r.side === 'SELL_SIDE' : r.side === 'BUY_SIDE'))
+    .sort((a, b) =>
+      (direction === 'LONG' ? a.bottom - b.bottom : b.top - a.top) || (a.zfp - b.zfp));
+  if (internals.length > 0) {
+    const near = direction === 'LONG' ? internals[0]!.bottom : internals[0]!.top;
+    return { level: near, zoneId: z.id };
+  }
   return { level: direction === 'LONG' ? z.bottom : z.top, zoneId: z.id };
 }
 
@@ -2355,9 +2518,25 @@ function strongestInternalLqzRung(
 ): LqzZoneMatrix | null {
   const wantSide = direction === 'LONG' ? 'SELL_SIDE' : 'BUY_SIDE';
   const edge = direction === 'LONG' ? zone.bottom : zone.top;
+  // THE PIP SCALE (the canonical derivation — the zone's own price magnitude:
+  // the DXY ~101 → 0.01, the FX ~1.14 → 0.0001 — the same pattern as the
+  // chain's internalNearEdge — never a fixed constant).
+  const pipSize = (zone.top - zone.bottom) > 1 ? 0.01 : 0.0001;
+  // ── THE W6 GATE AT THE INTERNAL-RUNG SELECTION (the GU SHORT fix — 
+  //    2026-08-11, the orchestrator's audit): the W-ADM-3 W6 gate covers the
+  //    computeLmvTP WALK's candidate admission (:2941) but NOT this shared
+  //    internal-rung selector — the structuralOpposingLqz branches (2/3) call
+  //    it for the E2-projected opposing zone's internal fuel, and the GU
+  //    SHORT's projected DEMAND resolves its internal BUY_SIDE rung to the
+  //    ZERO-WIDTH degenerate band [1.32673-1.32673] (zfp ≤ 20 — the W6
+  //    predicate which the W-ADM-3 gate never reached). THE FIX: the SAME
+  //    isValidRung predicate (the picker's canon, mirror.ts:1428) filters
+  //    the internal candidates — a zero-width / sub-floor-width /
+  //    id-center-drifting band is NEVER the zone's internal fuel. ──
   const inside = lmv.filter((z) =>
     z.side === wantSide && z.zfp <= 20 &&
-    z.bottom >= zone.bottom - 1e-9 && z.top <= zone.top + 1e-9);
+    z.bottom >= zone.bottom - 1e-9 && z.top <= zone.top + 1e-9 &&
+    isValidRung(z, lmvAnchorId('LMV', z), pipSize));
   if (inside.length === 0) return null;
   return [...inside].sort((a, b) =>
     (a.zfp - b.zfp) ||
@@ -2377,11 +2556,35 @@ function strongestInternalLqzRung(
  * the entry anchors to), NEVER the opposing-side rung (that is the TP's
  * rung — the strongestInternalLqzRung's wantSide). Null → the zone carries
  * no fresh internal LQZ on its side (the honest fallback).
+ *
+ * v4.5.3 STEP-2 (the SHORT-side precision — the SHADOW-rank fix): the
+ * SHORT's proximity measures the pocket's OWN TOP distance to the zone's
+ * top (|rung.top − zone.top|) — the FIRST pocket the sweep from above hits
+ * = the TOPMOST. The OLD center-proximity ranked the SHADOW's center (the
+ * [1.1439, 1.14417]-shadow with the center 1.1445 TIED the [1.14449,
+ * 1.14480]-pocket — the operator's #3's 1.14460! — and won the candles
+ * tie-break — the #3's emission = 1.1439, Δ7.0p — the WRONG pocket). The
+ * top-proximity: [1.14449, 1.14480]'s top 1.14480 vs the zone's top
+ * 1.14494 — Δ1.4p — WINS → the entry = its bottom 1.14449 — the #3's
+ * Δ1.1p! The #8 (Fri WL): the topmost [1.14567, 1.14583] — the entry
+ * 1.14567 — the #8's Δ1.2p! The LONG keeps the center-proximity (the deep
+ * branch's #4's Δ0.7p — UNCHANGED).
+ *
+ * v4.5.3 STEP-2 (the SS-shape's LQZ-below-the-supply): the SS-SHORT's entry
+ * = the SECOND-topmost internal pocket (rank=1!) — the operator's #1:
+ * "LQZ at 1.1444 - 1.14395 ~ using this as the entry zone anchor" — the
+ * LQZ BELOW the supply (the machine's [1.1439, 1.14417] — the second-
+ * highest — its bottom 1.1439 — Δ0.5p of the operator's 1.14395 — the
+ * FIRST liquidity the SS-sweep consumes BELOW the supply's own pocket!).
+ * The BS/WL/R shorts keep the TOPMOST (the #3's supply-edge + the #5's +
+ * the GU #2's Δ0.0p). rank=1 with ONE pocket → the topmost (the honest
+ * fallback).
  */
 function strongestInternalEntryRung(
   zone: ZoneModel,
   direction: 'LONG' | 'SHORT',
   lmv: LmvTable,
+  rank = 0,
 ): LqzZoneMatrix | null {
   const wantSide = direction === 'LONG' ? 'BUY_SIDE' : 'SELL_SIDE';
   const edge = direction === 'LONG' ? zone.bottom : zone.top;
@@ -2389,9 +2592,55 @@ function strongestInternalEntryRung(
     z.side === wantSide && z.zfp <= 20 &&
     z.bottom >= zone.bottom - 1e-9 && z.top <= zone.top + 1e-9);
   if (inside.length === 0) return null;
-  return [...inside].sort((a, b) =>
+  const sorted = [...inside].sort((a, b) =>
     (a.zfp - b.zfp) ||
-    (Math.abs(a.center - edge) - Math.abs(b.center - edge)) ||
+    (direction === 'LONG'
+      ? (Math.abs(a.center - edge) - Math.abs(b.center - edge))
+      : ((edge - a.top) - (edge - b.top))) ||
+    (b.candles.length - a.candles.length) ||
+    (a.center - b.center));
+  const pick = sorted[Math.min(rank, sorted.length - 1)]!;
+  return pick;
+}
+
+/**
+ * nestedSellLiquidity — the DEMAND'S NESTED SELL-SIDE LIQUIDITY (v4.5.3
+ * STEP 1 — the operator's #2's fix, the measured mechanism): the SS-shape's
+ * LONG entry = the top of the SELL_SIDE rung whose band sits at the demand's
+ * NEAR EDGE — the liquidity pocket directly BELOW the demand anchor's floor.
+ * The operator (verbatim, the #2): "Set E at the TP level of trade #1...
+ * the nested liquidity zone that sits inside this demand at 1.14110 -
+ * 1.14020" — the entry 1.14110 = the LQZ's top — the machine's SELL_SIDE
+ * rung [1.14080, 1.14120]'s top 1.14120 = Δ1.0p (the FX-proven). The
+ * demand anchor [1.14122, 1.14154]'s floor 1.14122 vs the SELL rung's top
+ * 1.14120 = Δ0.2p — the ADJACENT pocket (the nested liquidity at the
+ * demand's near edge — the SELL_SIDE = the liquidity the down-sweep
+ * consumes INSIDE the demand — the operator's TP of the #1!). The NESTED
+ * WINDOW = 10 pips below the anchor's floor (the ladder's grid step) — the
+ * Thu's nearest SELL top sits 44p below (a full band-gap — NOT the demand's
+ * nested pocket — the anchor.top stands — the #7's Δ2.6p held). Ranked by
+ * the strongestInternalLqzRung mechanism (zfp asc → the closest top to the
+ * anchor's floor → the most reaction candles). Null → no nested pocket
+ * (byte-identical to the pre-v4.5.3 resolution). The BOTH-SIDES symmetry:
+ * the SHORT entry already resolves the SELL_SIDE rung's floor (the #1's
+ * Δ0.5p HIT — the operator's LQZ below the supply) — this completes the
+ * LONG side with the SELL_SIDE rung's top.
+ */
+const NESTED_SELL_WINDOW_PIPS = 10;
+function nestedSellLiquidity(
+  anchor: ZoneModel | LqzZoneMatrix,
+  lmv: LmvTable,
+  pipValue: number,
+): LqzZoneMatrix | null {
+  const floor = anchor.bottom;
+  const windowLo = floor - NESTED_SELL_WINDOW_PIPS * pipValue;
+  const cands = lmv.filter((z) =>
+    z.side === 'SELL_SIDE' && z.zfp <= 20 &&
+    z.top <= floor + 1e-9 && z.top >= windowLo - 1e-9);
+  if (cands.length === 0) return null;
+  return [...cands].sort((a, b) =>
+    (a.zfp - b.zfp) ||
+    ((floor - a.top) - (floor - b.top)) ||
     (b.candles.length - a.candles.length) ||
     (a.center - b.center))[0]!;
 }
@@ -2421,10 +2670,6 @@ function e2ZoneResolvedEntry(
   pipValue: number,
   shape?: string,
 ): { entry: number; overlap: LqzZoneMatrix | null } {
-  if (isLqzAnchor(anchor)) {
-    // The anchor IS the LQZ rung — the near edge of the rung itself.
-    return { entry: direction === 'LONG' ? anchor.top : anchor.bottom, overlap: anchor };
-  }
   // THE SHAPE-DRIVEN NEAR/DEEP (2026-08-05 — the operator's per-trade nature):
   // the RECOVERY/REVERSAL trades (the RWL/R/RS/PRWL — the operator's #4
   // "it is plausible that a minor recovery will happen" + the #6 "the deep
@@ -2436,6 +2681,28 @@ function e2ZoneResolvedEntry(
   // HIT!). The SHORT side keeps the internal-rung floor (the measured Δ0.5p
   // HIT — the operator's #1's LQZ below the supply).
   const deepShapes = shape === 'RWL' || shape === 'PRWL' || shape === 'R' || shape === 'RS';
+  // v4.5.3 STEP 1 — the DEMAND'S NESTED SELL-SIDE LIQUIDITY: the SS-shape's
+  // LONG entry = the top of the SELL_SIDE rung at the demand's near edge
+  // (the operator's #2 — verbatim: "This follows the shape chain forming of
+  // SS → BS, this is an obvious follow up trade to trade #1 that just
+  // completed, both fit the SS pattern" — the SS-pattern's LONG = the TP of
+  // the prior SS-SHORT = the demand's nested LQZ: 1.14110 → the machine's
+  // SELL_SIDE rung [1.14080, 1.14120]'s top 1.14120 — Δ1.0p — the measured
+  // fix). The SS-GATE is the measured scope: the BS/WL LONGs resolve the
+  // anchor-top (the #7's 1.14199 Δ2.6p HIT — the operator's "E at the TP of
+  // trade #4" = the SUPPLY-side level, NOT the demand's pocket) and the
+  // PBS LONGs keep the anchor-top (the GU Wed's 1.33323 Δ0.7p from the
+  // #1's 1.33330 — the nested fired WRONGLY there and regressed it 0.7p →
+  // 3.0p — the SS-gate restores it). The DEEP-type LONGs keep the deep
+  // branch below (the #4's Δ0.7p — UNCHANGED).
+  if (direction === 'LONG' && shape === 'SS') {
+    const nested = nestedSellLiquidity(anchor, targetModel.lmv.table, pipValue);
+    if (nested) return { entry: nested.top, overlap: null };
+  }
+  if (isLqzAnchor(anchor)) {
+    // The anchor IS the LQZ rung — the near edge of the rung itself.
+    return { entry: direction === 'LONG' ? anchor.top : anchor.bottom, overlap: anchor };
+  }
   if (direction === 'LONG') {
     if (deepShapes) {
       const deep = strongestInternalEntryRung(anchor, direction, targetModel.lmv.table);
@@ -2448,7 +2715,7 @@ function e2ZoneResolvedEntry(
     // the LQZ's top ≈ the zone's top).
     return { entry: anchor.top, overlap: null };
   }
-  const rung = strongestInternalEntryRung(anchor, direction, targetModel.lmv.table);
+  const rung = strongestInternalEntryRung(anchor, direction, targetModel.lmv.table, shape === 'SS' ? 1 : 0);
   if (rung) {
     return { entry: rung.bottom, overlap: rung }; // the SHORT-only branch — the LQZ's floor
   }
@@ -2521,19 +2788,61 @@ function structuralOpposingLqz(
   direction: 'LONG' | 'SHORT',
   targetModel: ChartModel,
   targetPair: string,
-  projectedId: string,
+  projectedIdRaw: string,
   pipValue: number,
   e1Walls: boolean,
 ): { tp: number; rungId: string } | null {
+  // THE C-2 FIX (2026-08-11 — Machine C): the E2's band-qualified LMV id
+  // (`LMV|pair|center|floor|ceiling`) fed the id-matching regex — the
+  // centerTail grabbed the BAND's ceiling (100.91800 instead of the rung
+  // center 100.95000) → the TP anchored to the WRONG rung (the DXY SHORT's
+  // TP 100.779 instead of the golden 100.918 — the Δ13.0p LONG regression).
+  // The band suffix is stripped at the boundary (the rung identity is the
+  // center — the E2's tier is resolved upstream by resolveOperativeZone).
+  const projectedId = stripBandSuffix(projectedIdRaw);
   // 1. The projected zone IS the internal LQZ rung itself.
   const centerTail = /([0-9.]+)$/.exec(projectedId);
   const centerKey = centerTail ? `|${Number(centerTail[1]).toFixed(5)}` : '';
+  // THE C-2 FIX (2026-08-11 — Machine C): the E2's bridge-id format is
+  // `LMV|pair|center.toFixed(5)` (rungIdOf — the E2 designation's anchor
+  // format), while lmvAnchorId emits `${pair}|LMV|center.toFixed(priceDecimals)`
+  // — the pair-first order AND the decimal precision DIFFER. The old lookup
+  // (lmvAnchorId === projectedId, then endsWith `|100.95000`) MISSED the
+  // golden rung (the DXY LONG: the E2's D=LMV|DXY|100.95000 failed to
+  // resolve → the SHORT's TP fell to the deep walk 100.780 → the golden
+  // chain TP 100.918 LOST → the LONG emitted the deep entry 100.8145 → the
+  // golden gate Δ13.0p MISS). The match now ALSO accepts the rungIdOf format:
+  // `LMV|${pair}|${center.toFixed(5)}` — the E2-authoritative designation
+  // resolves DIRECTLY (the operator's "E2 DESIGNATES, E3 OBEYS").
+  const rungBridgeId = (z: LqzZoneMatrix): string => `LMV|${targetPair}|${z.center.toFixed(5)}`;
   const lmvMatch = targetModel.lmv.table.find((z) => lmvAnchorId(targetPair, z) === projectedId)
+    ?? targetModel.lmv.table.find((z) => rungBridgeId(z) === projectedId)
     ?? (centerKey !== ''
-      ? targetModel.lmv.table.find((z) => lmvAnchorId(targetPair, z).endsWith(centerKey))
+      ? targetModel.lmv.table.find((z) => lmvAnchorId(targetPair, z).endsWith(centerKey) || rungBridgeId(z).endsWith(centerKey))
       : undefined);
+  if (process.env.C2_TP_DEBUG) console.log(`[TP-DIRECT] projectedId=${projectedId} lmvMatch=${lmvMatch ? lmvAnchorId(targetPair, lmvMatch) : 'NONE'} center=${lmvMatch?.center} band=[${lmvMatch?.bottom},${lmvMatch?.top}] edge=${lmvMatch?.defendedEdge} zfp=${lmvMatch?.zfp}`);
   if (lmvMatch) {
+    if (process.env.C2_TP_DEBUG) console.log(`[TP-DIRECT] zfp gate: ${lmvMatch.zfp} > 20 ? ${lmvMatch.zfp > 20}`);
     if (lmvMatch.zfp > 20) return null; // a worked shelf — not an unmitigated wall
+    // ── THE W6 GATE AT THE DIRECT-RUNG BRANCH (the GU SHORT fix — 2026-08-11,
+    //    the orchestrator's audit): the W-ADM-3 gate covered the WALK's
+    //    candidate admission (:2941) but NOT this PRIMARY branch — the
+    //    E2-designated rung resolved DIRECTLY (the operator's "E2
+    //    DESIGNATES, E3 OBEYS" law) — and the GU SHORT's E2 shapeDay
+    //    demandZoneId = LMV|GBP/USD|1.32850 points at the ZERO-WIDTH
+    //    degenerate rung [1.32673-1.32673], whose defendedEdge 1.32850 was
+    //    emitted as the TP (the RRR 10.96 phantom — the operator's "this was
+    //    a flat 2R trade" reproduced by the structural path the W-ADM-3
+    //    missed). THE FIX: the SAME isValidRung predicate (the picker's
+    //    canon, imported at :1428) gates the direct-rung branch — a
+    //    zero-width / sub-floor-width / id-center-drifting band is REJECTED
+    //    at admission (the DEGENERATE_RUNG_REJECTED record) and the branch
+    //    falls through to the S/D-zone resolution + the walk — the degenerate
+    //    rung never becomes a TP. ──
+    if (!isValidRung(lmvMatch, lmvAnchorId(targetPair, lmvMatch), pipValue)) {
+      console.log('[DEGENERATE_RUNG_REJECTED]', { id: lmvAnchorId(targetPair, lmvMatch), band: [lmvMatch.bottom, lmvMatch.top], branch: 'structuralOpposingLqz-direct' });
+      return null;
+    }
     // ZR-7B (the E2-authority restoration — the operator's law "E2
     // DESIGNATES, E3 OBEYS" + the 2026-07-31 ruling "make E2 designations
     // AUTHORITATIVE — exact keyZoneId match → return immediately"): the
@@ -2550,6 +2859,7 @@ function structuralOpposingLqz(
     const tp = e1Walls
       ? strengthDrivenRungTp(lmvMatch, bridgedLmvZone(targetModel, targetPair, lmvMatch), direction, pipValue)
       : lmvMatch.defendedEdge;
+    if (process.env.C2_TP_DEBUG) console.log(`[TP-DIRECT-RET] tp=${tp} entry=${entry} dir=${direction} valid=${(direction === 'LONG' ? tp > entry : tp < entry)}`);
     if (direction === 'LONG' ? tp > entry : tp < entry) {
       return { tp, rungId: lmvAnchorId(targetPair, lmvMatch) };
     }
@@ -2564,8 +2874,18 @@ function structuralOpposingLqz(
       // PASS-THROUGH — the TP extends to the first structural wall beyond
       // the shelf (the D37: the GU Mon's projected BoM's internal rung IS
       // the 1.33720 shelf — the structurally-correct terminal is the 4H
-      // MoM's internal LQZ).
-      if (e1Walls) {
+      // MoM's internal LQZ). THE C-2 GATE (2026-08-11 — Machine C): the
+      // extension NEVER fires on a FRESH unmitigated internal rung (zfp ≤
+      // 20 — the operator's TP structure). The EU SHORT's fortress
+      // [1.14004-1.14147] internal rung [1.14027-1.14045] (zfp 20 — the
+      // operator's TP 1.14040 = the near edge) was a "shallow shelf" →
+      // the extension fired → the TP extended DEEP to 1.13937 (the ΔNONE
+      // LONG regression — the chained TP 1.13937 outside the fortress →
+      // the receiving re-resolution → nothing). The operator's law: "the TP
+      // = the first DEFENDED opposing structure's near edge" — the fresh
+      // internal rung IS the first defended structure — the extension is
+      // for the WORKED shelves (zfp > 20 — the D37's 1.33720) only.
+      if (e1Walls && (internal.zfp ?? 99) > 20) {
         const bridged = bridgedLmvZone(targetModel, targetPair, internal);
         if (bridged && !isStructuralWall(bridged)) {
           const ext = extendThroughShallowShelf(internal.center, direction, targetModel, targetPair, pipValue);
@@ -2700,10 +3020,26 @@ export function computeLmvTP(
     }
   }
 
-  const opposing = targetModel.lmv.table.filter((z) =>
-    direction === 'LONG'
+  // ── W-ADM-3 (2026-08-10 — the §2.6 TP-WALK W6 GATE, the F-5 root): the
+  //    candidate admission runs the picker's rung-validity predicate
+  //    (isValidRung — imported, never re-declared) at EVERY candidate, FIRST
+  //    in the admission order (the picker's pattern, selectPairNativeZone
+  //    :1558-1568): a zero-width / sub-floor-width / id-center-drifting rung
+  //    is a DEFECT, never a level — REJECTED at admission with the
+  //    DEGENERATE_RUNG_REJECTED record (the picker's exact shape) and the
+  //    walk CONTINUES to the next defended wall (the honest-absence law — the
+  //    GU SHORT's 1.32850 [1.32673-1.32673] phantom dies here, the ~16.8 RRR
+  //    becomes structurally impossible). ──
+  const opposing = targetModel.lmv.table.filter((z) => {
+    const id = lmvAnchorId('LMV', z);
+    if (!isValidRung(z, id, pipValue)) {
+      console.log('[DEGENERATE_RUNG_REJECTED]', { id, band: [z.bottom, z.top] });
+      return false;
+    }
+    return direction === 'LONG'
       ? z.side === 'SELL_SIDE' && z.center > entry
-      : z.side === 'BUY_SIDE' && z.center < entry);
+      : z.side === 'BUY_SIDE' && z.center < entry;
+  });
   if (opposing.length === 0) return null;
 
   // L4 (2026-07-31): SWEEP-BONUS INVERSION — a swept rung's liquidity is
@@ -2712,14 +3048,17 @@ export function computeLmvTP(
   // dead. Evidence: [1.34081-1.34116] defEdge 1.34111 zfp 60 sweeps 1 → sig 90
   // was WRONG; fresh Hard Walls zfp≤20 must outrank it.)
   const significance = (z: LqzZoneMatrix): number =>
-    (z.sweepCount >= 1 ? -30 : 0) +
+    // THE C-7 KILL (§2.5): the sweep-count −30 penalty DIES — a swept shelf is
+    // DEFENSE evidence, never spent; the candle-count zfp is the TIEBREAK only
+    // (the "significance is based on E1 first, E2 second, candle mechanics
+    // third" doctrine). The sweep count ranks ASC in the sort (the fewer
+    // sweeps = the fresher = the higher rank).
     (z.zfp <= 20 ? 40 : z.zfp <= 30 ? 25 : 15);
   const ranked = opposing
     .map((z) => ({ z, sig: significance(z), dist: Math.abs(z.center - entry) }))
-    // v4.5.x R1: a weak shelf (zfp > 30) is never the terminal target —
-    // price passes through it to the first non-weak opposing rung.
-    .filter((c) => !weakPass || c.z.zfp <= 30)
-    .sort((a, b) => (b.sig - a.sig) || (a.dist - b.dist) || (a.z.center - b.z.center));
+    // THE C-7 KILL (§2.5): the weak-pass zfp>30 filter DIES — a defended shelf
+    // (0x-2x) is a wall regardless of its candle count.
+    .sort((a, b) => (b.sig - a.sig) || ((a.z.sweepCount ?? 0) - (b.z.sweepCount ?? 0)) || (a.dist - b.dist) || (a.z.center - b.z.center));
 
   const skippedCapIds = new Set<string>();
   for (const { z: target } of ranked) {
@@ -3048,6 +3387,71 @@ export function narrativeAligned(
   };
 }
 
+/**
+ * resolveNativeAnchor — THE PAIR-NATIVE STRUCTURAL MATCH (the operator's
+ * cascade law, VERBATIM): "EACH PAIR RUNS ITS OWN NATIVE PAIR-ISOLATED
+ * E1/E2/E3. THEN DXY'S E2 + E3 OUTPUT CASCADES ON TOP OF THE EU/GU PAIR
+ * NATIVE E1 ANCHORS. IT DOES NOT OVERWRITE OR SUPERSEDE IT IS FUCKING
+ * COMPLIMENTARY. IT IS LITERALLY FUCKING REGEX PATTERN MATCHING DXY -->
+ * EU AND EU --> GU. YOU CANNOT MATCH BoM TO BoM? SUPPLY TO DEMAND?
+ * DEMAND TO SUPPLY? MoM TO MoM?"
+ *
+ * The regex-style structural match of a source setup against the TARGET
+ * pair's OWN native E1 zones (the target pair's anchors — NEVER the
+ * cascade's price space, §15 anti-goal):
+ *   element — BoM→BoM, MoM→MoM, LQZ→LQZ (the source's class vs the target
+ *             zone's classification; the LQZ rungs come from the target's
+ *             OWN LmvTable — the pair-specific LQZ, never the cascade's)
+ *   role    — the SIDE INVERSION: a DXY source flips (DXY SUPPLY → the EU
+ *             DEMAND, DXY DEMAND → the EU SUPPLY — the INVERSE lane); an EU
+ *             source preserves (EU SUPPLY → the GU SUPPLY, EU DEMAND → the
+ *             GU DEMAND — the KEPT lane). The mirror's direction
+ *             (reAnchorMirror:3215) already encodes the inversion, so the
+ *             wantType derives from the direction — the LONG mirror's native
+ *             anchor is the DEMAND side (never the supply — the D50
+ *             direction-appropriate consumption PRESERVED).
+ *   band    — the NEAREST band wins (the deterministic tie-break: the price
+ *             distance from the target spot, then the id — the §5.3 rank
+ *             semantics).
+ * The E2 designation (the e2MatchId — the shape chain's zone) is the
+ * COMPLEMENTARY confirmation: when the E2-designated zone exists AND IS the
+ * native anchor, the E2 entry resolution refines; when it is absent, the
+ * native structural anchor is the honest fallback (the operator's native E1
+ * anchors). Returns null only when the target pair has NO zone of the
+ * source's element on the mirror's side (honest FAILED anchor).
+ */
+function resolveNativeAnchor(
+  source: TradeSetup | MirrorOutcomeV45,
+  targetModel: ChartModel,
+  direction: 'LONG' | 'SHORT',
+): ZoneModel | LqzZoneMatrix | null {
+  const element = zoneClassOf(source);   // the source's class (BoM | MoM | LQZ)
+  const wantType = direction === 'SHORT' ? 'SUPPLY' : 'DEMAND'; // the mirror's side (the inversion already applied)
+  const wantSide = direction === 'SHORT' ? 'SELL_SIDE' : 'BUY_SIDE';
+  const targetSpot = targetModel.spot;
+  if (element === 'LQZ') {
+    const rungs = targetModel.lmv.table
+      .filter((z) => z.side === wantSide)
+      .sort((a, b) =>
+        (Math.abs(a.center - targetSpot) - Math.abs(b.center - targetSpot)) ||
+        (a.center - b.center));
+    return rungs.length > 0 ? rungs[0]! : null;
+  }
+  const zones = targetModel.zones
+    .filter((z) => {
+      // Wave A1.1 (DECISION-1 — the same guard as selectPairNativeZone:1526):
+      // the IP zones are confluence/SL-TP rungs, never entry anchors.
+      if ((z as { source?: string }).source === 'PILLAR') return false;
+      if (z.type !== wantType) return false;
+      if (z.classification !== element) return false;
+      return true;
+    })
+    .sort((a, b) =>
+      (Math.abs(mid(a) - targetSpot) - Math.abs(mid(b) - targetSpot)) ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return zones.length > 0 ? zones[0]! : null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // §5.2 — reAnchorMirror: the v4.5 mirror construction (80% signal + 20%
 // pair-native optimization, + the MANDATORY CS-1 guard + the narrative gate)
@@ -3159,17 +3563,34 @@ export function reAnchorMirror(
       ctx?.shapeDay,
     );
   }
-  if (!anchor) return null; // honest FAILED anchor — the caller logs it
+  if (!anchor) {
+    // THE PAIR-NATIVE FALLBACK (the operator's cascade law — VERBATIM:
+    // "EACH PAIR RUNS ITS OWN NATIVE PAIR-ISOLATED E1/E2/E3. THEN DXY'S
+    // E2 + E3 OUTPUT CASCADES ON TOP OF THE EU/GU PAIR NATIVE E1 ANCHORS.
+    // IT DOES NOT OVERWRITE OR SUPERSEDE IT IS FUCKING COMPLIMENTARY."):
+    // when the class/strength search (with the E2 shape-day preference)
+    // finds NO anchor, the mirror resolves the target pair's OWN native E1
+    // zone matched structurally by the source setup's classification + the
+    // side-inversion (the regex — resolveNativeAnchor below: BoM→BoM,
+    // MoM→MoM, LQZ→LQZ; DXY SUPPLY→EU DEMAND, DXY DEMAND→EU SUPPLY —
+    // INVERSE; EU→GU preserves — KEPT), the nearest band wins (the
+    // deterministic tie-break). Honest — null only when the pair has no
+    // zone of the source's element on the mirror's side (the caller logs it).
+    anchor = resolveNativeAnchor(source, targetModel, direction);
+    if (!anchor) return null; // honest FAILED anchor — the caller logs it
+  }
 
-  const anchorKind: 'ORDER_BLOCK' | 'LQZ' = isLqzAnchor(anchor) ? 'LQZ' : 'ORDER_BLOCK';
-  const anchorZoneId = isLqzAnchor(anchor) ? lmvAnchorId(targetPair, anchor) : anchor.id;
-  const anchorFormationMs = isLqzAnchor(anchor)
+  // The anchor-derived fields — declared LET so the E2-gate re-resolution
+  // below can re-anchor (the pair-native match) and re-derive in place.
+  let anchorKind: 'ORDER_BLOCK' | 'LQZ' = isLqzAnchor(anchor) ? 'LQZ' : 'ORDER_BLOCK';
+  let anchorZoneId = isLqzAnchor(anchor) ? lmvAnchorId(targetPair, anchor) : anchor.id;
+  let anchorFormationMs = isLqzAnchor(anchor)
     ? (anchor.candles.length > 0 ? anchor.candles[0]!.timestamp : 0)
     : anchor.formationMs;
-  const anchorZfp = anchor.zfp;
+  let anchorZfp = anchor.zfp;
   // v4.5.x R2: a CONSUMED anchor (the recently-battled / rank-nearest
   // fallback) arms the SL volatility check + carries the provenance flag.
-  const anchorConsumed = !isLqzAnchor(anchor) && anchor.freshness === 'DEPLETED';
+  let anchorConsumed = !isLqzAnchor(anchor) && anchor.freshness === 'DEPLETED';
 
   // ── Entry for an E2-designated anchor = the resolved zone's internal LQZ
   //    rung's NEAR EDGE (ZR-6A/B, the E3 PRICE RESOLUTION — the E2 price is
@@ -3183,13 +3604,49 @@ export function reAnchorMirror(
   //    The defendedEdge is the fallback ONLY when no E2 designation exists
   //    (or the anchor isn't the designated zone, or the zone carries no
   //    internal LQZ on its side — honest absence, §12 Law 3). ──
+  //    THE E2-GATE RE-RESOLUTION (the operator's cascade law — the E2
+  //    designation is the COMPLEMENTARY signal, never the sole selector):
+  //    the D50 direction-appropriate consumption (the LONG → the
+  //    demandZoneId, the SHORT → the supplyZoneId) is PRESERVED; when the
+  //    gate REJECTS (the class/strength anchor is NOT the E2-designated
+  //    zone), the mirror re-resolves the pair-NATIVE structural anchor (the
+  //    regex — the same resolveNativeAnchor); if the native anchor IS the
+  //    E2-designated zone, the E2 designation CONFIRMS/REFINES (the E2
+  //    near-edge entry — "E2 DESIGNATES, E3 OBEYS"); otherwise the native
+  //    anchor's defendedEdge stands (the honest fallback).
   const e2MatchId = ctx?.shapeDay
     ? (direction === 'LONG'
         ? (ctx.shapeDay.demandZoneId ?? ctx.shapeDay.keyZoneId)
         : (ctx.shapeDay.supplyZoneId ?? ctx.shapeDay.keyZoneId))
     : undefined;
-  const e2Designated = e2MatchId != null && (e2MatchId === anchorZoneId ||
+  let e2Designated = e2MatchId != null && (e2MatchId === anchorZoneId ||
     e2MatchId === (isLqzAnchor(anchor) ? anchorZoneId : anchor.id));
+  if (e2MatchId != null && !e2Designated) {
+    const nativeAnchor = resolveNativeAnchor(source, targetModel, direction);
+    if (nativeAnchor) {
+      const nativeId = isLqzAnchor(nativeAnchor) ? lmvAnchorId(targetPair, nativeAnchor) : nativeAnchor.id;
+      // The E2 designation CONFIRMS/REFINES the pair-native anchor — the
+      // both-sides test: the LONG mirror's native anchor is the demand-side
+      // (the wantType derives from the direction — never the supply). The
+      // center-tail comparison is the E2-authoritative doctrine
+      // (mirror.ts:1478 — the designation `LMV|pair|center` and the rung id
+      // `pair|LMV|center` both normalize to the numeric center tail — an LMV
+      // rung IS its center).
+      const e2Tail = (e2MatchId ?? '').split('|').pop() ?? '';
+      const nativeTail = nativeId.split('|').pop() ?? '';
+      if (e2MatchId === nativeId || (e2Tail !== '' && e2Tail === nativeTail)) {
+        anchor = nativeAnchor;
+        anchorKind = isLqzAnchor(anchor) ? 'LQZ' : 'ORDER_BLOCK';
+        anchorZoneId = nativeId;
+        anchorFormationMs = isLqzAnchor(anchor)
+          ? (anchor.candles.length > 0 ? anchor.candles[0]!.timestamp : 0)
+          : anchor.formationMs;
+        anchorZfp = anchor.zfp;
+        anchorConsumed = !isLqzAnchor(anchor) && anchor.freshness === 'DEPLETED';
+        e2Designated = true;
+      }
+    }
+  }
   const { entry, overlap } = e2Designated
     ? e2ZoneResolvedEntry(anchor, direction, targetModel, targetPair, pipValue, ctx?.shapeDay?.shape)
     : defendedEdgeEntry(anchor, direction, targetModel.lmv.table);

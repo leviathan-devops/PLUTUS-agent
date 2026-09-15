@@ -118,10 +118,11 @@ export default async function PlutusAgent(input: PluginInput): Promise<Hooks> {
     const { createPlutusTools } = await import('./tools/plutus-tools.js');
     tools = createPlutusTools(input);
 
-    // ── PLUTUS 4.0: Register the 5-tool mechanical chain ──
-    const { createPipeline4Tools, setSdkClient } = await import('./pipeline/engine.js');
+    // ── PLUTUS 4.5.4: Register the 7-tool mechanical chain (the D5 order) ──
+    // v4.5.4 Phase 7: createPipeline7Tools adds the STEP A/B + gate tools.
+    const { createPipeline7Tools, setSdkClient } = await import('./pipeline/engine.js');
     setSdkClient(input.client); // Bridge SDK client for VLM analysis (agent IS the VLM)
-    const pipeline4Tools = createPipeline4Tools();
+    const pipeline4Tools = createPipeline7Tools();
     tools = { ...tools, ...pipeline4Tools };
 
     // ── Register omni-vision tool for VLM analysis ──

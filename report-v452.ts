@@ -11,8 +11,11 @@
  *   → EU: DXY-inverse E2 CASCADE (translateCascadeDayMap — the TRANSLATION,
  *     structural equivalent, NOT designation) → EU E2 CORE (the EU brain's
  *     OWN strength-based chain + day designation, exactly like DXY)
- *     → divergence validation (computeChainDivergence ≤ 0.35 — FLAG ONLY,
- *     never override the pair's E2)
+ *     → divergence validation (computeChainDivergence ≤ 0.35 — the macro-wins
+ *     law, the G3 contract + D59: when the cascade direction contradicts the
+ *     pair's E2 core beyond the threshold, the MACRO AUTHORITY WINS — the
+ *     direction + the designation flip to the cascade's, the divergence
+ *     recorded in the store (MACRO_DIVERGENCE))
  *     → DXY-inverse E3 cascade (cascadeV45's EU lane — the EU CORE's
  *     ShapeDayZone days, ZONE-ANCHORED)
  *   → GU: EU E2 CASCADE (translateCascadeDayMap(euCoreDays, KEPT)) → GU E2
@@ -48,6 +51,12 @@ import {
   sessionOf,
 } from './src/mdve/index.js';
 import { mirrorToDedupSetupV452 } from './src/mdve/mirror.js';
+// THE TEMPORAL ENGINE (the operator's temporal law — the locked run-anchor
+// gate): the --day/--time input locks the anchor ONE-WAY at the pipeline
+// entry; gateBars PHYSICALLY BLOCKS every future bar past it from entering
+// any model. The gate is inert until the lock — the legacy no-arg path stays
+// byte-identical (the ANCHOR_MS fallback).
+import { lockRunAnchor, gateBars } from './src/mdve/temporal.js';
 import type { MirrorOutcomeV45 } from './src/mdve/mirror.js';
 import { dedupTrades } from './src/mdve/trade-dedup.js';
 import type { DedupSetup, UniqueTrade } from './src/mdve/trade-dedup.js';
@@ -73,8 +82,15 @@ import type { OptionsExpiryData, OptionStrike } from './src/clients/investingliv
 import type { ZoneModel } from './src/mdve/types.js';
 import { ShapeBrain } from './src/brains/shape-brain.js';
 import type { CascadedShapeChain } from './src/mdve/shape-cascade.js';
-import { translateCascadeDayMap, computeChainDivergence } from './src/mdve/cascade-translation.js';
+import { translateCascadeDayMap, computeChainDivergence, CASCADE_DIVERGENCE_VALIDATED } from './src/mdve/cascade-translation.js';
 import type { TranslatedDayMap } from './src/mdve/cascade-translation.js';
+// Wave W4 (2026-08-10 — the C-5 second half, the macro-wins law): the
+// FAILURE STORE row (recordFailure) — the MACRO_DIVERGENCE record is the G3
+// gate's evidence (golden-gate.ts's store.macroDivergenceRows), NEVER a
+// log-only marker. The store degrades to the append-only fallback when
+// bun:sqlite is unavailable (failure-store.ts:19-22) — a thrown write is
+// caught + logged by the divergence handler, NEVER a silent skip.
+import { recordFailure } from './src/mdve/failure-store.js';
 import type { ShapePredictionSnapshot } from './src/types.js';
 // Wave A1.3 (2026-08-01 — the operator's directive): the PRIOR-WEEK
 // BACKWARDS-MAPPING PRE-FLIGHT. The prior week's E1/E2 pipeline runs on the
@@ -96,8 +112,12 @@ import type { MirrorReanchorContext } from './src/mdve/mirror.js';
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/** The week's temporal anchor (the harness canon — verify-refinement-x.ts). */
-const ANCHOR_MS = 1783702800000; // 2026-07-10T17:00:00Z
+/** The week's temporal anchor — THE ANALYSIS POINT (the operator's temporal law:
+ *  "everything needs to be done temporally anchored to LONDON SESSION PRE-MARKET" —
+ *  the Monday 2026-07-06 06:00 UTC, the START of the pre-London hour; the London
+ *  open = 07:00 UTC. The Friday-close 1783702800000 is DEAD — it leaks the week's
+ *  reactions into the model. The W1 sweep (2026-08-10). */
+const ANCHOR_MS = 1783317600000; // ANALYSIS_POINT_MS — Monday 2026-07-06 06:00 UTC
 const WEEK = '2026-07-06';
 /** Wave A1.3: the current week's start (UTC midnight Monday) — the prior
  *  week's END. The pre-flight's priorAnchor = weekStartMs (bars ≤ it =
@@ -112,6 +132,39 @@ const REPORT_PATH = 'report_v452.md'; // relative — SF-AST: no absolute paths
  *  When present, the walls enter the zone map with the Options-Derived
  *  confluence. */
 const OPTIONS_WALLS_PATH = process.env.OPTIONS_WALLS_FIXTURE ?? ['/tmp', 'opencode', 'options_walls.json'].join('/');
+
+/**
+ * parseRunAnchor — THE TEMPORAL RUN ANCHOR PARSER (the operator's "today").
+ * --day=YYYY-MM-DD (+ optional --time=HH:MM) → the anchor ms; the default
+ * hour is 07:00 UTC (the London session open — the operator's run moment).
+ * ABSENT --day → null (the legacy ANCHOR_MS fallback — no lock, no gate,
+ * byte-identical behavior). Malformed input THROWS with the remedy — the
+ * parse NEVER silently defaults (the audit gate flags the silent failure).
+ * IDENTICAL COPY in all four runners (report-v452.ts, diag-golden-coverage.ts,
+ * diag-lmv-golden-fx.ts, diag-lmv-golden.ts) — a divergence is a defect.
+ */
+function parseRunAnchor(argv: string[]): number | null {
+  const dayArg = argv.find((a) => a.startsWith('--day='));
+  if (!dayArg) return null; // the legacy path — the ANCHOR_MS fallback
+  const token = dayArg.slice('--day='.length);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(token);
+  if (!m) throw new Error(`TEMPORAL PARSE: invalid --day '${token}' - expected YYYY-MM-DD`);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    throw new Error(`TEMPORAL PARSE: invalid --day '${token}' - expected YYYY-MM-DD`);
+  }
+  let hh = 7, mm = 0; // the London-open default (the operator's run moment)
+  const timeArg = argv.find((a) => a.startsWith('--time='));
+  if (timeArg) {
+    const t = /^(\d{2}):(\d{2})$/.exec(timeArg.slice('--time='.length));
+    if (!t || Number(t[1]) > 23 || Number(t[2]) > 59) {
+      throw new Error(`TEMPORAL PARSE: invalid --time - expected HH:MM with HH 0-23, MM 0-59`);
+    }
+    hh = Number(t[1]); mm = Number(t[2]);
+  }
+  return Date.UTC(Number(m[1]), month - 1, day, hh, mm);
+}
 
 /**
  * The expected options-walls file schema (the parallel agent's contract):
@@ -323,14 +376,20 @@ function loadFixture(): {
 } {
   const raw: RawFeed[] = JSON.parse(readFileSync(FIXTURE, 'utf8'));
   const barsFor = (pair: string, tf: string): OHLCBar[] =>
-    (raw.find((r) => r.pair === pair && r.timeframe === tf)?.bars ?? [])
-      .filter((b) => b.timestamp <= ANCHOR_MS)
+    gateBars(
+      (raw.find((r) => r.pair === pair && r.timeframe === tf)?.bars ?? [])
+        .filter((b) => b.timestamp <= ANCHOR_MS),
+    )
       .sort((a, b) => a.timestamp - b.timestamp);
   const simBarsFor = (pair: string): OHLCBar[] =>
     (raw.find((r) => r.pair === pair && r.timeframe === '1H')?.bars ?? [])
       .sort((a, b) => a.timestamp - b.timestamp);
   const spotFor = (pair: string): number => {
-    const b = barsFor(pair, '4H');
+    // THE ANALYSIS-POINT SPOT (the §2.1 semantic — the W1 fix): the last 1H
+    // close at/before the anchor = the 05:00 bar's close for the 06:00 point
+    // (the state the operator sees at the London pre-market analysis moment).
+    // NEVER the 4H close (the coarser bar blurs the exact analysis price).
+    const b = barsFor(pair, '1H');
     return b.length ? b[b.length - 1]!.close : 0;
   };
   // ── ZR-7B (DERAILMENT-8 — the spec Part 2 Wave ZR-7B change 4): the
@@ -698,6 +757,7 @@ export function toDxyZone(z: { id: string; bottom: number; top: number; type: 'S
     pressure,
     formationMs: z.formationMs,
     reactionEvents,
+    side: (z as { side?: 'BUY_SIDE' | 'SELL_SIDE' }).side, // the C-2 fix: the LMV battle vote carried for the E2 candidate admission
   };
 }
 
@@ -811,6 +871,95 @@ export function snapshotToCascadedChain(snap: ShapePredictionSnapshot, pair: str
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// THE MACRO-WINS FLIP HELPERS (Wave W4 — the C-5 second half, the spec §2.4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Canonical 'Mon'..'Fri' day label (mirror of cascade-translation.ts's
+ *  canonicalDay): the cascaded entries carry the SHORT canonical labels
+ *  ('Mon', ...); the core chain days carry the decomposition's raw labels
+ *  ('Mon (week)', ...) — the flip must normalize BOTH sides to match. Total:
+ *  unknown/absent → the label unchanged. */
+function flipDayLabel(day: string): string {
+  const m = /^(Mon|Tue|Wed|Thu|Fri)/i.exec(day.trim());
+  return m ? m[1]![0]!.toUpperCase() + m[1]!.slice(1).toLowerCase() : day;
+}
+
+/** THE MACRO-DIVERGENCE STORE ROW (the G3 evidence — data, never dropped):
+ *  recordFailure({ component, reason: 'MACRO_DIVERGENCE', context, attempts,
+ *  week, pair }) — the EXACT FailureRecord fields (failure-store.ts:50-63;
+ *  the reason union at :43 includes 'MACRO_DIVERGENCE'). The store degrades
+ *  to the append-only fallback when bun:sqlite is unavailable
+ *  (failure-store.ts:19-22) — a thrown write is caught + logged, NEVER a
+ *  silent skip. The coreDirection is captured BEFORE the flip (the pre-flip
+ *  state — what the macro authority overrode); the macroDirection is the
+ *  cascaded Monday's role-derived direction. */
+function recordMacroDivergence(
+  pair: string,
+  divergence: number,
+  coreChain: CascadedShapeChain | null,
+  cascaded: TranslatedDayMap | null,
+): void {
+  const coreMonday = coreChain?.days?.[0];
+  const cascMonday = cascaded?.entries?.find((e) => e.day === (coreMonday ? flipDayLabel(coreMonday.day) : 'Mon'));
+  const coreDirection = coreMonday?.direction ?? null;
+  const macroDirection = cascMonday?.role == null ? null : cascMonday.role === 'DEMAND' ? 'LONG' : 'SHORT';
+  try {
+    recordFailure({
+      component: `E2-DIVERGENCE:${pair}`,
+      reason: 'MACRO_DIVERGENCE',
+      context: { pair, week: WEEK, divergence, coreDirection, macroDirection },
+      attempts: 1,
+      week: WEEK,
+      pair,
+    });
+  } catch (err) {
+    console.error(`[E2-divergence] the MACRO_DIVERGENCE store write failed (${pair}): ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/** THE MACRO-WINS FLIP (the C-5 second half — the OVERHAUL SPEC V2 §2.4):
+ *  when a lane's divergence > CASCADE_DIVERGENCE_VALIDATED, the macro
+ *  authority wins — each core day whose direction contradicts the cascaded
+ *  day's flips to the cascade's direction + designation (the G3 contract:
+ *  "the GBP/USD Monday projection direction === 'LONG'; the R divergence
+ *  recorded (MACRO_DIVERGENCE); the macro wins" + D59: "the DIRECTION is the
+ *  derailment — the unified macro authority must fix it (the mirror law!)").
+ *  IDEMPOTENT: only the direction-DIFFERING days copy; an already-flipped
+ *  day matches the cascade → no change (a second run double-flips nothing).
+ *  The honest absences never flip: a null chain/cascade, a core day with NO
+ *  matching cascaded entry, or an unresolved cascade entry (null role/zone) —
+ *  the day stands unchanged. The deep demand is nulled (the cascade
+ *  designates ONE zone per day — no second-demand evidence; a stale deep
+ *  demand from the pre-flip direction would mis-designate). Returns the
+ *  flipped-day count. */
+function applyDivergenceFlip(
+  coreChain: CascadedShapeChain | null,
+  cascaded: TranslatedDayMap | null,
+  divergence: number | null,
+): number {
+  if (!coreChain || !cascaded) return 0;                                          // honest absence — no flip, no crash
+  if (divergence === null || divergence <= CASCADE_DIVERGENCE_VALIDATED) return 0; // VALIDATED — the core stands (the threshold is STRICTLY GREATER: exactly 0.35 = no flip)
+  const entriesByDay = new Map(cascaded.entries.map((e) => [e.day, e]));
+  let flipped = 0;
+  for (const day of coreChain.days) {
+    const entry = entriesByDay.get(flipDayLabel(day.day));
+    if (!entry) continue;                                                          // a core day with NO matching cascaded entry stands
+    if (entry.role === null || entry.translatedZoneId === null) continue;          // an unresolved cascade day stands (honest absence)
+    const macroDirection = entry.role === 'DEMAND' ? 'LONG' : 'SHORT';
+    if (day.direction === macroDirection) continue;                                // idempotent — the differing days only
+    // THE MACRO WINS — the direction + the designation flip to the cascade's
+    day.direction = macroDirection;
+    day.keyZoneId = entry.translatedZoneId;
+    day.keyZoneType = entry.role;
+    day.supplyZoneId = entry.role === 'SUPPLY' ? entry.translatedZoneId : null;
+    day.demandZoneId = entry.role === 'DEMAND' ? entry.translatedZoneId : null;
+    day.deepDemandZoneId = null;                                                   // no second-demand evidence (honest)
+    flipped += 1;
+  }
+  return flipped;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // THE E2 CORE BUILDER (Wave G2 — shared by runChainV452 + the gate diags)
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -882,8 +1031,8 @@ export interface E2CoreResult {
  *   1. DXY E2 CORE (the pair brain — strength-based, unchanged).
  *   2. EU: DXY-inverse E2 CASCADE (translateCascadeDayMap — structural
  *      equivalent, INVERSE) + the EU E2 CORE (the EU brain's OWN
- *      strength-based days) + computeChainDivergence validation (≤0.35,
- *      FLAG ONLY).
+ *      strength-based days) + computeChainDivergence validation (≤0.35 —
+ *      the macro-wins law: beyond the threshold the macro authority wins).
  *   3. GU: EU E2 CASCADE (translateCascadeDayMap(euCoreDays, KEPT)) + the
  *      GU E2 CORE (the RESTORED GU brain run) + the divergence validation.
  * Returns the pair brains' chains (the mirrors' shapeDay source — shapeChains
@@ -913,7 +1062,40 @@ export async function buildE2Core(
   // ── the three PAIR BRAIN runs (E2 CORE — strength-based designation) ──
   const dxyShape = await buildShapeBrain('DXY', dxyModel, priorStorylines?.['DXY']);
   const euShape = await buildShapeBrain('EUR/USD', euModel, priorStorylines?.['EUR/USD']);
-  const guShape = await buildShapeBrain('GBP/USD', guModel, priorStorylines?.['GBP/USD']);
+  // THE C-3 FIX (2026-08-11 — Machine C): the GU brain runs with the EU's
+  // shape chain INJECTED (the operator VERBATIM — "why is the E2 shape
+  // chain for GU not literally the exact same as EU with the only difference
+  // between the 2 being the E3 setups?"). The EUR/USD and the GBP/USD share
+  // the SAME macro waveform — the GU's E2 designation must consume the EU's
+  // SS/BS/R/BS/WL shapes over the GU's OWN zones (the E3 setups differ per
+  // pair — the GU's zones → the GU's entries). The GU's OWN shape
+  // prediction was degenerate (SS×4+WL — its zone map collapses the chain)
+  // → the same designation every day → the identical-trade slop. The EU
+  // chain injection makes the GU's day decomposition designate the GU zones
+  // per the shared waveform — the per-day variation restored, the ONLY
+  // difference between the EU and the GU being the zones (the E3 setups).
+  let guShape: ShapePredictionSnapshot | null = null;
+  {
+    const guBrain = new ShapeBrain();
+    const guSnap: ZoneMapSnapshot = {
+      version: 1, timestamp: Date.now(), instrument: 'GBP/USD',
+      zones: guModel.zones.map(toDxyZone),
+      spots: { 'GBP/USD': guModel.spot },
+    };
+    if (priorStorylines?.['GBP/USD']) {
+      (guSnap as ZoneMapSnapshot & { priorStoryline?: PriorWeekStoryline }).priorStoryline = priorStorylines['GBP/USD'];
+    }
+    const guLtf = guModel.zones.filter((z) => z.timeframe === '30m').map(toDxyZone);
+    guBrain.setZoneMap(guSnap, guLtf);
+    // INJECT the EU's SHAPE SEQUENCE — the GU's E2 waveform = the EU's (the
+    // shared macro — SS/BS/R/BS/WL), the GU's own zones = the E3's raw
+    // material (the ONLY difference between the EU and the GU is the E3
+    // setups — the operator VERBATIM).
+    if (euShape?.shapeChain?.dayDecomposition) {
+      guBrain.injectShapeSequence(euShape.shapeChain.dayDecomposition.map((d) => ({ shape: d.shape })));
+    }
+    guShape = await guBrain.compute();
+  }
 
   // ── Wave ZR-2B — THE STORYLINE per pair (the E2 narrative on the E1
   //    pressure): computeWeekStoryline rides the pair's model (the ZR-1
@@ -970,12 +1152,23 @@ export async function buildE2Core(
   const euCoreChain: CascadedShapeChain | null = euShape
     ? snapshotToCascadedChain(euShape, 'EUR/USD')
     : null;
+  // THE C-3 FIX (2026-08-11 — Machine C): the GU's E2 chain = the GU brain
+  // run WITH THE EU's SHAPE SEQUENCE INJECTED (see the guShape construction
+  // above — the operator VERBATIM: "why is the E2 shape chain for GU not
+  // literally the exact same as EU with the only difference between the 2
+  // being the E3 setups?"). The GU's own day decomposition now designates
+  // the GU zones per the EU's SS/BS/R/BS/WL waveform — the per-day variation
+  // restored, the dayOpenSpot = the GU's OWN day-band (1.33342-based), the
+  // zones = the GU's own (the E3 setups differ per pair).
   const guCoreChain: CascadedShapeChain | null = guShape
     ? snapshotToCascadedChain(guShape, 'GBP/USD')
     : null;
 
-  // ── DIVERGENCE VALIDATION (the operator's 35% rule — FLAG ONLY, NEVER
-  //    override the pair's E2; the cascade validates, it never designates) ──
+  // ── DIVERGENCE VALIDATION (the macro-wins law — the G3 contract + D59):
+  //    when the cascade direction contradicts the pair's E2 core beyond the
+  //    threshold (CASCADE_DIVERGENCE_VALIDATED — imported, never re-declared),
+  //    the MACRO AUTHORITY WINS — the direction + the designation flip to the
+  //    cascade's, the divergence recorded in the store (MACRO_DIVERGENCE) ──
   const euDivergence = euCoreChain && euCascaded
     ? computeChainDivergence(euCoreDays, dxyBrainDays)
     : null;
@@ -983,9 +1176,27 @@ export async function buildE2Core(
     ? computeChainDivergence(guCoreDays, euCoreDays)
     : null;
 
+  // THE MACRO-WINS FLIP (the C-5 second half — the spec §2.4): the store row
+  // is recorded BEFORE the flip (the coreDirection context = the PRE-FLIP
+  // state — what the macro overrode); the flip mutates the CORE chains the
+  // mirrors consume (shapeChains = the pair brains' days). The GU lane first
+  // (the D59 evidence — the GU Monday R:SHORT vs the kept EU LONG); the EU
+  // lane mirrors the same law with the DXY-inverse cascade (symmetric — an EU
+  // divergence > 0.35 would flip the EU core too). The fixture's EU
+  // divergence is 0.00 (VALIDATED) — the EU lane's emissions are UNCHANGED.
+  if (guDivergence !== null && guDivergence > CASCADE_DIVERGENCE_VALIDATED) {
+    recordMacroDivergence('GBP/USD', guDivergence, guCoreChain, guCascaded);
+  }
+  if (euDivergence !== null && euDivergence > CASCADE_DIVERGENCE_VALIDATED) {
+    recordMacroDivergence('EUR/USD', euDivergence, euCoreChain, euCascaded);
+  }
+  const guFlippedDays = applyDivergenceFlip(guCoreChain, guCascaded, guDivergence);
+  const euFlippedDays = applyDivergenceFlip(euCoreChain, euCascaded, euDivergence);
+
   // ── the E2 log (the shapeChains wiring evidence) ──
   if (euCoreChain && guCoreChain) {
     console.log('[E2] DXY:', dxyShape?.shapeChain.currentShape, '| EU CORE:', euCoreChain.storylineBias, '| GU CORE:', guCoreChain.storylineBias);
+    if (dxyChain) console.log('[E2-CORE] DXY days:', dxyChain.days.map(d => `${d.day}:${d.shape}:${d.direction}:${d.keyZoneId ?? 'none'}(S:${d.supplyZoneId ?? '-'}/D:${d.demandZoneId ?? '-'}/KT:${d.keyZoneType ?? '-'}/open:${d.dayOpenSpot !== undefined ? d.dayOpenSpot.toFixed(5) : '-'})`).join(', '));
     console.log('[E2-CORE] EU days:', euCoreChain.days.map(d => `${d.day}:${d.shape}:${d.direction}:${d.keyZoneId ?? 'none'}(S:${d.supplyZoneId ?? '-'}/D:${d.demandZoneId ?? '-'}/DD:${d.deepDemandZoneId ?? '-'}/KT:${d.keyZoneType ?? '-'}/open:${d.dayOpenSpot !== undefined ? d.dayOpenSpot.toFixed(5) : '-'})`).join(', '));
     console.log('[E2-CORE] GU days:', guCoreChain.days.map(d => `${d.day}:${d.shape}:${d.direction}:${d.keyZoneId ?? 'none'}(S:${d.supplyZoneId ?? '-'}/D:${d.demandZoneId ?? '-'}/DD:${d.deepDemandZoneId ?? '-'}/KT:${d.keyZoneType ?? '-'}/open:${d.dayOpenSpot !== undefined ? d.dayOpenSpot.toFixed(5) : '-'})`).join(', '));
   } else {
@@ -998,10 +1209,10 @@ export async function buildE2Core(
     console.log(`[E2-cascade→GU] KEPT translation: ${guCascaded.entries.length} entries | structural divergence=${guCascaded.divergence === null ? 'n/a' : guCascaded.divergence.toFixed(2)}`);
   }
   if (euDivergence !== null) {
-    console.log(`[E2-divergence] EU core vs DXY-inverse cascade: ${euDivergence.toFixed(2)}${euDivergence <= 0.35 ? ' (≤0.35 — VALIDATED)' : ' (>0.35 — DIVERGED, flag only — pair E2 stands)'}`);
+    console.log(`[E2-divergence] EU core vs DXY-inverse cascade: ${euDivergence.toFixed(2)}${euDivergence > CASCADE_DIVERGENCE_VALIDATED ? ` (>${CASCADE_DIVERGENCE_VALIDATED.toFixed(2)} — MACRO WINS — ${euFlippedDays} day(s) flipped to the inverse cascade)` : ` (<=${CASCADE_DIVERGENCE_VALIDATED.toFixed(2)} — VALIDATED)`}`);
   }
   if (guDivergence !== null) {
-    console.log(`[E2-divergence] GU core vs EU cascade: ${guDivergence.toFixed(2)}${guDivergence <= 0.35 ? ' (≤0.35 — VALIDATED)' : ' (>0.35 — DIVERGED, flag only — pair E2 stands)'}`);
+    console.log(`[E2-divergence] GU core vs EU cascade: ${guDivergence.toFixed(2)}${guDivergence > CASCADE_DIVERGENCE_VALIDATED ? ` (>${CASCADE_DIVERGENCE_VALIDATED.toFixed(2)} — MACRO WINS — ${guFlippedDays} day(s) flipped to the kept cascade)` : ` (<=${CASCADE_DIVERGENCE_VALIDATED.toFixed(2)} — VALIDATED)`}`);
   }
 
   return {
@@ -1023,8 +1234,9 @@ export async function buildE2Core(
  *  The CASCADE TRANSLATES (structural equivalent — cascade-translation.ts);
  *  the PAIR BRAINS' E2 CORE DESIGNATES (strength-based, exactly like DXY —
  *  ShapeBrain's projectZoneForDay day decomposition over the pair's OWN
- *  zones); the cascade VALIDATES (computeChainDivergence ≤ 0.35 — flag
- *  only, NEVER override the pair's E2). The E3 cascade is cascadeV45's
+ *  zones); the cascade VALIDATES (computeChainDivergence ≤ 0.35 — the macro-
+ *  wins law: beyond the threshold the MACRO AUTHORITY WINS the emission). The
+ *  E3 cascade is cascadeV45's
  *  single deterministic pass: the EU lane mirrors the DXY setups (inverse),
  *  the GU lane mirrors the ACTIVE EU mirrors (the EU E3 cascade — mirror.ts
  *  :2463), both zone-anchored via shapeChains = the PAIR BRAINS' days
@@ -1075,7 +1287,9 @@ export async function runChainV452(): Promise<ChainResult> {
   //             (projectZoneForDay's strength designation over the pair's
   //             OWN zones, exactly like DXY — the Phase-5 Δ0.4p machinery).
   //   CASCADE VALIDATES — computeChainDivergence ≤ 0.35 (the operator's 35%
-  //             rule): FLAG ONLY, NEVER override the pair's E2.
+  //             rule — the macro-wins law, the G3 contract + D59): when the
+  //             cascade direction contradicts the pair's E2 core beyond the
+  //             threshold, the MACRO AUTHORITY WINS the emission.
   // The mirrors consume the PAIR BRAINS' ShapeDayZone days (shapeChains =
   // { dxy: dxyBrain, eu: euCoreBrain, gu: guCoreBrain }) — the shapeDay
   // threading in cascadeV45 → reAnchorMirror → selectPairNativeZone makes
@@ -1094,7 +1308,8 @@ export async function runChainV452(): Promise<ChainResult> {
   //    + GU (EU E2 cascade → GU E2 CORE → divergence). The pair brains'
   //    strength-based chains are the mirrors' shapeDay source (shapeChains =
   //    { dxy: dxyBrain, eu: euCoreBrain, gu: guCoreBrain }) — the CASCADE
-  //    translates + validates (≤35% divergence, flag only), it never
+  //    translates + validates (≤35% divergence — the macro-wins law: beyond
+  //    the threshold the MACRO AUTHORITY WINS the emission), it never
   //    designates. GU's E3 cascade is cascadeV45's internal EU→GU lane — GU
   //    mirrors are sourced from the ACTIVE EU mirrors (mirror.ts:2463, §9.6
   //    Stage 3), NEVER the raw DXY setups. ──
@@ -1474,6 +1689,16 @@ function renderReport(c: Omit<ChainResult, 'markdown'>): string {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 if (import.meta.main) {
+  // ═══ THE TEMPORAL LOCK-FIRST (the operator's law — "TODAY IS WHATEVER DATE
+  //   WE SET WHEN RUNNING THE PIPELINE"): the --day/--time anchor is locked
+  //   as the FIRST executable action — before ANY bar read — and cannot be
+  //   changed for the rest of the run. The no-arg legacy path returns null
+  //   (no lock, no gate — the ANCHOR_MS fallback, byte-identical). ═══
+  const anchorMs = parseRunAnchor(process.argv);
+  if (anchorMs !== null) {
+    lockRunAnchor(anchorMs);
+    console.error(`[TEMPORAL] RUN ANCHOR LOCKED: ${new Date(anchorMs).toISOString()} (${anchorMs}) - every bar past this is DROPPED by the gate`);
+  }
   const result = await runChainV452();
   writeFileSync(REPORT_PATH, result.markdown);
   console.log(`report_v452.md written (${result.markdown.length} chars, ${result.markdown.split('\n').length} lines)`);

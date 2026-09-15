@@ -15,6 +15,44 @@
 import { buildChartModel } from './src/mdve/index.js';
 import { readFileSync } from 'node:fs';
 import type { OHLCBar } from './src/types.js';
+// THE TEMPORAL ENGINE (the operator's temporal law): the --day/--time input
+// locks the run anchor ONE-WAY as the FIRST action — before ANY bar read;
+// gateBars PHYSICALLY BLOCKS every future bar past it. The gate is inert
+// until the lock — the no-arg legacy path stays byte-identical.
+import { lockRunAnchor, gateBars } from './src/mdve/temporal.js';
+/**
+ * parseRunAnchor — THE TEMPORAL RUN ANCHOR PARSER (the operator's "today").
+ * IDENTICAL COPY in all four runners — a divergence is a defect.
+ */
+function parseRunAnchor(argv: string[]): number | null {
+  const dayArg = argv.find((a) => a.startsWith('--day='));
+  if (!dayArg) return null; // the legacy path — the ANCHOR_MS fallback
+  const token = dayArg.slice('--day='.length);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(token);
+  if (!m) throw new Error(`TEMPORAL PARSE: invalid --day '${token}' - expected YYYY-MM-DD`);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    throw new Error(`TEMPORAL PARSE: invalid --day '${token}' - expected YYYY-MM-DD`);
+  }
+  let hh = 7, mm = 0; // the London-open default (the operator's run moment)
+  const timeArg = argv.find((a) => a.startsWith('--time='));
+  if (timeArg) {
+    const t = /^(\d{2}):(\d{2})$/.exec(timeArg.slice('--time='.length));
+    if (!t || Number(t[1]) > 23 || Number(t[2]) > 59) {
+      throw new Error(`TEMPORAL PARSE: invalid --time - expected HH:MM with HH 0-23, MM 0-59`);
+    }
+    hh = Number(t[1]); mm = Number(t[2]);
+  }
+  return Date.UTC(Number(m[1]), month - 1, day, hh, mm);
+}
+// ═══ THE TEMPORAL LOCK-FIRST (before ANY bar read — the fixture load below
+//   is the first data touch; the lock precedes it) ═══
+const anchorMs = parseRunAnchor(process.argv);
+if (anchorMs !== null) {
+  lockRunAnchor(anchorMs);
+  console.error(`[TEMPORAL] RUN ANCHOR LOCKED: ${new Date(anchorMs).toISOString()} (${anchorMs}) - every bar past this is DROPPED by the gate`);
+}
 
 const ANCHOR_MS = 1783702800000; // the harness canon
 const WEEK = '2026-07-06';
@@ -49,8 +87,10 @@ interface RawFeed { pair: string; timeframe: string; bars: OHLCBar[]; error: str
 
 const raw: RawFeed[] = JSON.parse(readFileSync(FIXTURE, 'utf8'));
 const barsFor = (pair: string, tf: string): OHLCBar[] =>
-  (raw.find((r) => r.pair === pair && r.timeframe === tf)?.bars ?? [])
-    .filter((b) => b.timestamp <= ANCHOR_MS)
+  gateBars(
+    (raw.find((r) => r.pair === pair && r.timeframe === tf)?.bars ?? [])
+      .filter((b) => b.timestamp <= ANCHOR_MS),
+  )
     .sort((a, b) => a.timestamp - b.timestamp);
 const spotFor = (pair: string): number => {
   const b = barsFor(pair, '4H');

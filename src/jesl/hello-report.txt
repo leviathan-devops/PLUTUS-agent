@@ -1,0 +1,3 @@
+hello-report
+============
+accept:{"type":"hello","payload":"world"}

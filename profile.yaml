@@ -1,0 +1,104 @@
+# PLUTUS_AGENT — BUG-HUNTER PROFILE v3 (the full-corpus arming)
+# Built from the NON-NEGOTIABLE-RELOAD curation + the full MASTER_CONTEXT tier pass.
+# Tier 1 (this corpus): current-line v4.5.x law ONLY. Superseded eras (v4.0-v4.4
+# build specs/logs, ZR7-era, HOTFIX, L1-superseded) EXCLUDED — stale law would
+# enforce contradictions. History logs route to history.failureLogs (rank fuel,
+# never compiled into checks). Source: read-only. Machine writes land ONLY in
+# .trident/knowledge-graph/ + MASTER_CONTEXT/knowledge-graph/ + bug_hunter_report_vN.md
+
+profileVersion: 1
+
+project:
+  name: Plutus_Agent
+  root: "/home/leviathan/OPENCODE_WORKSPACE/Shared Workspace Context/Trident_Agent/Active_Projects/Plutus_Agent"
+  languages: [typescript]
+  entryPoints:
+    - src/index.ts
+    - report-v452.ts
+  build: "bun build src/index.ts --outdir dist --target bun"
+  test: "bun test"
+
+graph:
+  substrate: corbell
+  scope: [src]
+  excludes:
+    - node_modules
+    - dist
+    - src_OLD_STALE_LINEAGE_2026-07-31
+    - src_V42_DERAILMENT_BACKUP
+
+rules:
+  corpus:
+    # ── THE OPERATOR'S OWN RELOAD SET (NON-NEGOTIABLE-RELOAD/) ──
+    - MASTER_CONTEXT/NON-NEGOTIABLE-RELOAD/Golden_Operator_Trade_Feedback_EU_GU.md
+    - MASTER_CONTEXT/NON-NEGOTIABLE-RELOAD/PLUTUS_ARCHITECTURE_BIBLE_4.0.md
+    - MASTER_CONTEXT/NON-NEGOTIABLE-RELOAD/PLUTUS_ARCHITECTURE_BIBLE_4.5.md
+    - MASTER_CONTEXT/NON-NEGOTIABLE-RELOAD/VISUAL_TELESCOPE_CHARTING_T2.md
+    # ── THE FUNDAMENTAL INTELLIGENCE ──
+    - MASTER_CONTEXT/PLUTUS_E1_E2_E3_MACRO_CONTEXT.md
+    - MASTER_CONTEXT/HANDOVER_37_FUNDAMENTAL_LAWS.md
+    - MASTER_CONTEXT/NON_NEGOTIABLE_ORCHESTRATOR_PRINCIPLES.md
+    - MASTER_CONTEXT/PLUTUS_ANCHOR_DOCTRINE.md
+    - MASTER_CONTEXT/PLUTUS_DEEP_FIX_CODEX.md
+    # ── E3 ANCHOR LAW ──
+    - MASTER_CONTEXT/PLUTUS_E3_ANCHOR_ENGINEERING_SPEC.md
+    - MASTER_CONTEXT/PLUTUS_E3_ANCHOR_SPEC_VERBATIM.md
+    # ── TTE MARKET MECHANICS (verified-from-trades law) ──
+    - MASTER_CONTEXT/TTE_SHAPE_ZONE_MECHANICS_MILITARY_GRADE.md
+    - MASTER_CONTEXT/TTE_MACRO_SHAPES_COMPLETE_REFERENCE.md
+    - MASTER_CONTEXT/TTE_GOLDEN_STANDARD_COMPLETE_REFERENCE.md
+    - MASTER_CONTEXT/FORENSIC_ANALYSIS_38_TRADES.md
+    - MASTER_CONTEXT/SMC_Master_Notes.md
+    - MASTER_CONTEXT/SMC_Liquidity_Notes.md
+    # ── PROCESS + DATA + INFRA LAW ──
+    - MASTER_CONTEXT/DATA_PROVENANCE.md
+    - MASTER_CONTEXT/11_Token_Reasoning_Chain_Design.md
+    - MASTER_CONTEXT/Trident_Fractal_Architecture_FirstPrinciples_v2.3.md
+    - MASTER_CONTEXT/Plutus_Shark_Operator_Audit_Process.md
+    - MASTER_CONTEXT/T1_MULTI_TOOL_CHAIN_PIPELINE.md
+    # ── ENGINE SPECS (current subsystems) ──
+    - MASTER_CONTEXT/PLUTUS_TVI_DESIGN_SPEC.md
+    - MASTER_CONTEXT/PLUTUS_V4.4_MDVE_SPEC.md
+    # ── THE v4.5.4 CURRENT-LINE AUTHORITY SET ──
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_ZONE_ANCHORED_E2_FIX_SPEC.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_E1_MISSING_ZONE_FORENSIC_REPORT.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_OVERHAUL_SPEC_V2.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_AGENT_IN_THE_LOOP_ENGINEERING_SPEC.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_REASONING_CHAIN_ARCHITECTURE_L2_SPEC.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_LEXICON_SPEC.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_ANCHOR_DECISION_MACHINE_L2_SPEC.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.4_E2_NULL_FORENSIC_AND_MACHINE_C_SPEC.md
+
+  bindings:
+    # SEED-RUN ARMING (calibration pending on the other families):
+    domain.numeric-threshold:
+      symbol: gateG8
+      valuePath: comparator
+      operator: gt
+      threshold: 1.0
+    # PENDING CALIBRATION — re-arm after FIRE/GOLDEN fixtures:
+    # process.gates-measure-outputs-not-logic: stages E1->E2->E3
+    # contract.must-implement: ShapeBrain[setZoneMap,compute,injectShapeSequence]
+    # provenance.traces-to-source: requiredTraces [injectShapeSequence]
+
+pipeline:
+  stages:
+    - id: golden-gate
+      entry: src/pipeline/golden-gate-harness.ts
+      contract: "NOTHING SHOULD BE PRICE ANCHORED EVER"
+    - id: e1-e2-e3-chain
+      entry: src/mdve/reasoning-chain.ts
+      contract: "E3 is a natural RESULT we ARRIVE AT from E1 + 2 being done properly"
+    - id: cascade-injection
+      entry: report-v452.ts
+      contract: "GU E2 chain is LITERALLY the EU E2 injected over GU OWN zones"
+
+history:
+  failureLogs:
+    - MASTER_CONTEXT/PLUTUS_FAILURE_LOG_2026-07-29.md
+    - MASTER_CONTEXT/PLUTUS_FAILURE_LOG_v4.5.2_E2_CASCADE.md
+    - MASTER_CONTEXT/PLUTUS_V4.5.2_OVERHAUL_DEBUG_LOG.md
+
+awareness:
+  docs:
+    - MASTER_CONTEXT

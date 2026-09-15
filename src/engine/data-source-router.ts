@@ -1116,9 +1116,13 @@ export async function navigateHeadedBrowser(url: string): Promise<void> {
 export async function vlmInfer(imagePath: string, prompt: string): Promise<string | null> {
   // ── PRIMARY: MiMo v2.5 via OpenCode Go (fast cloud vision, ~3s per call) ──
   const OPENCODE_GO_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
-  const OPENCODE_GO_KEY = process.env.OPENCODE_API_KEY ?? process.env.OPENCODE_GO_KEY;
+  // THE H-1 REDACTION (the W8B spec §3 — 2026-08-10): the hardcoded key is
+  // REMOVED — the key reads from the OPENCODE_API_KEY env; a missing key is a
+  // LOUD FAIL at the call site (the cloud path throws, the direct-VLM
+  // fallback still runs — never a silent blank-key call).
+  const OPENCODE_GO_KEY = process.env.OPENCODE_API_KEY;
   if (!OPENCODE_GO_KEY) {
-    throw new Error("DATA-SOURCE-ROUTER: OPENCODE_API_KEY env is not set");
+    throw new Error('DATA-SOURCE-ROUTER: the OPENCODE_API_KEY env is not set — the OpenCode-Go cloud vision path cannot run (the H-1 redaction: the key no longer ships in the source)');
   }
   const VISION_MODEL = 'mimo-v2.5';
 

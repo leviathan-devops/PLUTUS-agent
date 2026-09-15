@@ -202,6 +202,10 @@ export interface DXYZone {
   keyLevels?: number[];
   /** Structural role in institutional move: "BoM" (Beginning of Move) or "MoM" (Middle of Move). E1-2: NOT S/D execution classification — that is Engine 3's job. */
   sdType?: string;
+  /** THE C-2 FIX (2026-08-11 — Machine C): the LMV matrix side carried for the
+   *  E2 candidate admission (a SELL_SIDE rung inside a DEMAND container is the
+   *  operator's SHORT structure — the sellers defend the highs). */
+  side?: 'BUY_SIDE' | 'SELL_SIDE';
   /** Refined multi-TF label, e.g. "15m Refined 1H" when zone validated on 2+ TFs. */
   refinedLabel?: string;
   /** Liquidity score 0-10 estimating resting orders behind the zone. */

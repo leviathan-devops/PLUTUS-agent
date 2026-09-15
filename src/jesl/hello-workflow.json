@@ -1,0 +1,14 @@
+{
+  "$schema": "trident-workflow-v1",
+  "meta": { "name": "hello-workflow", "tier": 1, "description": "W1 gate: 3-node detect->decide->generate-sink chain" },
+  "nodes": [
+    { "id": "hello-detect", "type": "detect", "caps": ["fs"], "config": { "pattern": "*", "event": { "type": "hello", "payload": "world" } } },
+    { "id": "hello-decide", "type": "decide", "config": { "rule": "non-empty" } },
+    { "id": "hello-report", "type": "generate-sink", "caps": ["fs"], "config": { "path": "hello-report.txt", "template": "hello-report\n============\n{decision}\n" } }
+  ],
+  "edges": [
+    { "from": "hello-detect", "to": "hello-decide", "via": "greeting" },
+    { "from": "hello-decide", "to": "hello-report", "via": "decision" }
+  ],
+  "vars": {}
+}

@@ -1,0 +1,538 @@
+# DIAGNOSTIC ANALYSIS: plutus-ts Setup Generation Failure
+
+## 1. Classification
+
+**Task type:** Plan-first diagnostic (multi-root-cause debugging).
+**Scope:** Four concurrent failures — (a) post-filter collapse 10→3 on DXY/EUR, (b) 0 setups on GBP/USD, (c) 0 setups on AUD/USD, (d) LQZ detection dead in pipeline despite passing smoke tests.
+**Severity:** Critical — pipeline output is 25% of target (6 vs 24) and GBP/AUD are completely silent.
+
+---
+
+## 2. Root Cause Analysis
+
+Five distinct root causes are operating simultaneously. They are NOT independent — RC1 propagates into RC2 and RC3, which together produce the observed asymmetry.
+
+### RC1 — `constructBasicSetups` collapses the Python triple-loop into a single-shape iteration (PRIMARY)
+
+**Why this matters:** The Python reference (`trident_engine3_v8.py:946-1102`, cited in `V3.2_FIX_PLAN.md:14-30`) iterates `day × zone × category`:
+
+```python
+for day_idx, day_shape in enumerate(shape_chain):     # OUTER: 5 days
+    for c in valid_candidates:                          # MIDDLE: N zones
+        for category in day_categories:                 # INNER: K categories
+```
+
+The TypeScript implementation (`plutus-tte-pipeline.ts:2590`, cited in `V3.2_FIX_PLAN.md:34-50`) collapses this to `zone × category` only, keyed off a single resolved shape:
+
+```typescript
+const currentShape = shapeChain.currentShape;          // ONE shape
+const { day, session } = this.resolveDaySession(...);   // ONE day
+const categoryNames = SHAPE_CATEGORIES_MAP[shapeKey];   // categories for ONE shape
+```
+
+**Why this kills GBP/AUD specifically:** `currentShape` is resolved once per pair. If the shape brain returns `SS` or `R` for GBP/AUD on the "current" day, the category map collapses to a tiny set (see RC2). DXY/EUR happen to resolve to `BS`/`WL`/`RWL` which produce 2 categories each → that's why they get 10 raw setups while GBP/AUD get 0.
+
+**Why-why chain:**
+- Why 0 setups for GBP/AUD? → `categoryNames` array is empty or all categories are filtered out for the pair.
+- Why empty? → `SHAPE_CATEGORIES_MAP[shapeKey]` returns categories incompatible with the pair (RC2).
+- Why incompatible? → Shape-category map is global, not pair-aware.
+- Why is currentShape bad for GBP/AUD? → Single-shape resolution discards 4 of 5 days from the shape chain.
+
+**File:line evidence:**
+- `V3.2_FIX_PLAN.md:34-50` — exact code showing single-shape collapse
+- `V3.2_FIX_PLAN.md:14-30` — Python triple-loop reference
+- `SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md` (SHAPE_CATEGORIES table) — confirms categories per shape
+
+### RC2 — `SHAPE_CATEGORIES` is global; pair restrictions enforced too late (or not at all)
+
+The category map from `SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md`:
+
+| Shape | Categories |
+|-------|-----------|
+| SS | [SWING_SCALP] |
+| BS | [HTF_SWING, BREAKOUT_SURGE] |
+| WL | [HTF_SWING] |
+| RWL | [HTF_SWING, BREAKOUT_SURGE] |
+| WLS | [SWING_SCALP, HTF_SWING] |
+| R | [REINFORCEMENT, SWING_SCALP] |
+
+But `SYNTHESIS/01_CONTEXT_DOCS_SYNTHESIS.md` (PAIR-SPECIFIC RULES) states:
+- **AUD/USD: BS/WL ONLY. NO swing scalps.** Tokyo+London only, NOT NY. 1-3 setups/week.
+- **AUD/USD: only HTF_SWING + BREAKOUT_SURGE categories** (`SYNTHESIS/03_VLM_ARTIFACTS_SYNTHESIS.md` DXY Cascade Flow section)
+
+**Consequence for AUD/USD:**
+- If `currentShape == SS` → map returns `[SWING_SCALP]` → ALL filtered out by AUD restriction → 0 setups
+- If `currentShape == R` → map returns `[REINFORCEMENT, SWING_SCALP]` → ALL filtered out → 0 setups
+- If `currentShape == WLS` → map returns `[SWING_SCALP, HTF_SWING]` → SWING_SCALP filtered, HTF_SWING survives → 1 category
+
+Only `BS`, `WL`, `RWL` produce viable categories for AUD. With single-shape resolution (RC1), AUD has ~50% probability of landing on a dead shape.
+
+**For GBP/USD:** All categories are nominally allowed (`SYNTHESIS/01`: "ALL setup types"), so RC2 alone does not explain GBP's 0. RC3/RC4 must also be in play for GBP.
+
+### RC3 — `constructBasicSetups` is DEPRECATED; the active `TradeBrain.generateSetups()` path is the "visual setup generator" the reasoning chain references
+
+From `KNOWN FINDINGS`:
+> `FAILURE: constructBasicSetups() is DEPRECATED. Use TradeBrain.generateSetups(). at V31_ZERO_TRUST_OVERHAUL_SPEC.md:385`
+
+**Implication:** Two setup generators exist:
+1. Legacy `constructBasicSetups` (in `plutus-tte-pipeline.ts:2590`) — what `V3.2_FIX_PLAN.md` analyzes
+2. Current `TradeBrain.generateSetups()` — the authoritative path
+
+The reasoning chain's phrase **"visual setup generator"** maps to `TradeBrain.generateSetups()`. If GBP/AUD bypass the new TradeBrain path (e.g., the dispatcher falls through to legacy code for some pairs, or TradeBrain is only instantiated for DXY/EUR), they get either:
+- Nothing (if legacy is gated off), or
+- The legacy broken output (if legacy still runs but is filtered downstream)
+
+**Why-why chain:**
+- Why 0 setups for GBP/AUD? → TradeBrain.generateSetups() returns empty for them.
+- Why empty? → Either not invoked, or invoked with stale/empty inputs.
+- Why not invoked? → Pair iteration in the dispatcher may be conditional on data availability, spot price presence, or DXY cascade dependency.
+- Why would GBP/AUD specifically be excluded? → Per `SYNTHESIS/03_VLM_ARTIFACTS_SYNTHESIS.md` (DXY CASCADE FLOW), GBP/AUD setups are supposed to flow from DXY via `DXYCascadeMapper`. If the cascade mapper is broken, GBP/AUD have no native setup generator fallback.
+
+**File:line evidence:**
+- `SYNTHESIS/03_VLM_ARTIFACTS_SYNTHESIS.md` (DXY CASCADE FLOW block): "DXY Setup (native) → DXYCascadeMapper → EUR/USD, GBP/USD, AUD/USD" — confirms GBP/AUD depend on cascade
+- `SYNTHESIS/03`: "Each pair gets MULTIPLE setups per DXY setup" — confirms cascade is the primary GBP/AUD path
+- `KNOWN FINDINGS` (`V31_ZERO_TRUST_OVERHAUL_SPEC.md:385`): constructBasicSetups deprecated
+
+### RC4 — Post-filter collapse: 10 raw setups → 3 final for DXY/EUR
+
+DXY/EUR produce 10 raw each (per problem statement) but only 3 survive. That's a **70% rejection rate** at downstream gates. Candidate filters:
+
+1. **Semantic firewall** — `V3.2_BUILD_REPORT_AND_DEBUG_LOG.md` §24 mentions "Firewall ZT-17 and CS12 Mode Flags" and §1 reports "0 firewall rejections" as a final-state achievement. If the current state regressed, firewall rules may be over-rejecting again.
+2. **Dedup by (direction, entry@2dp)** — `SYNTHESIS/03_VLM_ARTIFACTS_SYNTHESIS.md` Phase 6: "dedup by (direction, entry@2dp)". With single-shape iteration (RC1), all 10 raw setups for DXY may share the same shape/day → entries cluster within 2 decimals → 70% deduplication.
+3. **MAX_SETUPS_PER_PAIR = 10** (`SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md`) — cap isn't the issue (3 < 10), so a filter *before* the cap is rejecting.
+4. **MIN_CONFIDENCE_PRIMARY = 60** (`SYNTHESIS/02`) — if SL distances for DXY exceed `SL_MAX_PENALTY` (30 pips for DXY), confidence drops by 10 → many setups fall below 60.
+5. **MIN_RRR_BLENDED normal: Scalp=2.0, BS=2.5, HTF=3.0** (`SYNTHESIS/02`) — strict RRR floor rejecting marginal setups.
+
+**Most likely culprit:** Dedup by `(direction, entry@2dp)` combined with single-shape iteration. When all setups share one shape, the sniper-entry algorithm (`SYNTHESIS/02` `_get_sniper_entry`) produces near-identical entries across zones (all anchored to the same key_level cluster) → mass dedup.
+
+**Why-why chain:**
+- Why 3 not 10? → 7 are deduplicated or firewalled.
+- Why so much dedup? → Entries cluster because all setups use the same shape's sniper entry.
+- Why same shape? → RC1 (single-shape resolution).
+- So RC1 propagates into RC4.
+
+**File:line evidence:**
+- `SYNTHESIS/03_VLM_ARTIFACTS_SYNTHESIS.md` Phase 6 (dedup rule)
+- `SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md` (MIN_CONFIDENCE_PRIMARY, MAX_SETUPS_PER_PAIR, RRR thresholds)
+
+### RC5 — LQZ detection passes smoke tests but produces 0 zones in pipeline (wiring failure)
+
+From `KNOWN FINDINGS`:
+- "Pipeline calls detectLiquidityZones in constructAndMergeMultiTfZones"
+- "MTF diagnostic shows NO LQZ detection logs"
+- "Zone counts identical before and after LQZ fix"
+
+**The smoking gun:** NO LQZ logs in MTF diagnostic. If the function were actually executed, it would emit logs. Three candidate causes:
+
+1. **Exception swallowed:** `detectLiquidityZones` throws on real pipeline input (not smoke-test input), caught by a `try/catch` that logs at a level below the diagnostic threshold. Smoke tests use synthetic input; pipeline passes real `MultiTfBar[][]` arrays that may violate an unstated precondition.
+2. **Input mutation:** `constructAndMergeMultiTfZones` may pass a filtered/empty `swing_highs`/`swing_lows` array to `detectLiquidityZones`. Smoke tests pass populated arrays; pipeline passes arrays already filtered upstream.
+3. **Dead code path:** The call site is inside an `if (false)` or feature-flag-off branch, or the result is computed then discarded (`const lsz = detectLiquidityZones(...); // never used`).
+
+**Why-why chain:**
+- Why 0 LQZ zones? → Either not run, or run on empty input, or output discarded.
+- Why no logs? → Not executed at all (most likely), OR executed at DEBUG level not surfaced.
+- Why not executed? → Caller conditions not met, or exception in caller before reaching the call.
+
+**File:line evidence:**
+- KNOWN FINDINGS block (all three bullets above)
+- `BUILD_SPEC.md:50` — LSZ interface definition confirms structure expected
+- `BUILD_SPEC.md` Phase 2 — `src/brains/lsz-detector.ts` is a NEW file (per spec); may not be wired into the MTF merger
+
+### RC6 — Target "24 setups" is itself incorrect (spec divergence)
+
+`SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md`:
+> MAX_SETUPS_PER_PAIR = 10
+> MAX total = 40 (10/pair × 4 pairs)
+
+The problem statement targets 24 (8+8+8). Even after fixing RC1-RC5, the pipeline should produce up to **40** setups (or ~32 if AUD is intentionally capped at 1-3). The "8 per pair" target is an arbitrary midpoint, not a spec-derived number. Any fix strategy must acknowledge that the Python reference allows 10/pair, not 8.
+
+---
+
+## 3. EVIDENCE INVENTORY (file:line → contribution)
+
+| # | File:Line | Pattern | Contribution |
+|---|-----------|---------|--------------|
+| E1 | `V3.2_FIX_PLAN.md:34-50` | `currentShape = shapeChain.currentShape` (single-shape) | RC1 — collapses triple-loop |
+| E2 | `V3.2_FIX_PLAN.md:14-30` | Python `for day_idx, day_shape in enumerate(shape_chain)` | RC1 — reference triple-loop |
+| E3 | `V3.2_FIX_PLAN.md:54-66` | v3.2 R2 "called constructBasicSetups SEPARATELY for each day" | RC1 — broken prior fix attempt |
+| E4 | `V3.2_FIX_PLAN.md:72+` | "If no day decomposition, fall back to v3.1 single-shape" | RC1 — silent fallback path |
+| E5 | `SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md` SHAPE_CATEGORIES table | SS→[SWING_SCALP], R→[REINF,SCALP] | RC2 — narrow categories for SS/R shapes |
+| E6 | `SYNTHESIS/01_CONTEXT_DOCS_SYNTHESIS.md` PAIR-SPECIFIC RULES | "AUD/USD: BS/WL ONLY. NO swing scalps" | RC2 — AUD restriction |
+| E7 | `SYNTHESIS/03_VLM_ARTIFACTS_SYNTHESIS.md` DXY CASCADE FLOW | "DXY Setup → DXYCascadeMapper → EUR/GBP/AUD" | RC3 — GBP/AUD depend on cascade |
+| E8 | `SYNTHESIS/03` | "Each pair gets MULTIPLE setups per DXY setup" | RC3 — cascade is primary GBP/AUD source |
+| E9 | `V31_ZERO_TRUST_OVERHAUL_SPEC.md:385` (KNOWN FINDINGS) | "constructBasicSetups() is DEPRECATED" | RC3 — two generators exist |
+| E10 | `SYNTHESIS/03` Phase 6 | "dedup by (direction, entry@2dp)" | RC4 — mass dedup cause |
+| E11 | `SYNTHESIS/02` | MIN_CONFIDENCE_PRIMARY = 60 | RC4 — confidence floor |
+| E12 | `SYNTHESIS/02` | MAX_SETUPS_PER_PAIR = 10 | RC6 — target should be 40 not 24 |
+| E13 | `SYNTHESIS/02` | SL_MAX_PENALTY DXY=30 | RC4 — confidence -10 if exceeded |
+| E14 | `BUILD_SPEC.md:50` | `interface LSZ { top, bottom, side, priority, source, thickness }` | RC5 — LSZ structure |
+| E15 | `BUILD_SPEC.md` Phase 2 | "NEW src/brains/lsz-detector.ts" | RC5 — detector is new, may be unwired |
+| E16 | KNOWN FINDINGS | "MTF diagnostic shows NO LQZ detection logs" | RC5 — function not executed |
+| E17 | KNOWN FINDINGS | "Zone counts identical before and after LQZ fix" | RC5 — output not integrated |
+| E18 | `V3.2_BUILD_REPORT_AND_DEBUG_LOG.md:449` | `computeZFPFromScore` referenced | Confirms ZFP path exists (not direct cause) |
+| E19 | `SYNTHESIS/01` | "AUD/USD: Tokyo+London only, NOT NY" | RC2 — additional AUD filter (session) |
+| E20 | `SYNTHESIS/02` SNIPER_ENTRY | `_get_sniper_entry` clusters entries on key_levels | RC4 — dedup-prone entry computation |
+
+---
+
+## 4. FIX STRATEGY (prioritized phases)
+
+### Phase A — Restore the Python triple-loop in the ACTIVE generator (Highest priority)
+
+**Target:** `TradeBrain.generateSetups()` (the non-deprecated path). If the legacy `constructBasicSetups` at `plutus-tte-pipeline.ts:2590` is still in the call graph, replace its body with the corrected loop below.
+
+**Corrected code (replace the single-shape block cited in `V3.2_FIX_PLAN.md:34-50`):**
+
+```typescript
+private constructBasicSetups(
+    pair: string,
+    zoneMap: ZoneMapSnapshot,
+    shapePrediction: ShapePredictionSnapshot,
+    setupCounter: number,
+    lszZones: LSZResult[] = [],
+    optionStrikes: OptionStrikeData[] = [],
+    currentPrice: number = 0,
+    weeklyRangePips: number = 0,
+): TradeSetup[] {
+    const setups: TradeSetup[] = [];
+    const spot = zoneMap.spots[pair] ?? currentPrice;
+    const pipValue = PIP_VALUE[pair] ?? PIP_VALUE_DEFAULT;
+    const shapeChain = shapePrediction.shapeChain;
+    const dayDecomposition = shapeChain.dayDecomposition ?? [];
+    const zones = [...zoneMap.zones];
+    const isDXY = pair === 'DXY';
+    const isAUD = pair === 'AUD/USD';
+
+    // Pair-allowed categories (RC2 fix)
+    const allowedCategories: Set<SetupCategory> = isAUD
+        ? new Set([SetupCategory.HTF_SWING, SetupCategory.BREAKOUT_SURGE])
+        : new Set([
+            SetupCategory.SWING_SCALP,
+            SetupCategory.HTF_SWING,
+            SetupCategory.BREAKOUT_SURGE,
+            SetupCategory.REINFORCEMENT,
+            SetupCategory.TRANSITION,
+          ]);
+
+    // RC1 fix: iterate the FULL day decomposition, not just currentShape
+    const dayShapes = dayDecomposition.length > 0
+        ? dayDecomposition
+        : [{ day: this.resolveDaySession(pair).day,
+             shape: shapeChain.currentShape,
+             session: this.resolveDaySession(pair).session }];
+
+    for (const dayEntry of dayShapes) {                         // OUTER: days
+        const day = dayEntry.day;
+        const shape = dayEntry.shape;
+        const session = dayEntry.session;
+        const shapeCategories = SHAPE_CATEGORIES_MAP[shape] ?? [];
+
+        // RC2 fix: intersect shape categories with pair-allowed categories
+        const viableCategories = shapeCategories.filter(c => allowedCategories.has(c));
+        if (viableCategories.length === 0) continue;            // skip dead shape for this pair
+
+        for (const zone of zones) {                             // MIDDLE: zones
+            for (const category of viableCategories) {          // INNER: categories
+                const setup = this.buildSingleSetup(
+                    pair, zone, category, shape, day, session,
+                    spot, pipValue, setupCounter + setups.length,
+                    optionStrikes, weeklyRangePips,
+                );
+                if (setup && setup.quality !== SetupQuality.REJECTED) {
+                    setups.push(setup);
+                }
+            }
+        }
+    }
+
+    // RC4 fix: dedup AFTER all days accumulate, not per-day
+    return this.dedupByDirectionEntry(setups, pair);
+}
+```
+
+**Blast radius:** Medium. Changes setup count per pair from 0–10 to potentially 20–40 (before cap). Downstream consumers (firewall, report, dedup) must handle higher input volume. Dedup must move outside the day loop (already shown).
+
+### Phase B — Fix pair-aware category filtering (RC2)
+
+**Target:** `SHAPE_CATEGORIES_MAP` consumer (likely in `src/constants/trading-constants.ts` per `BUILD_SPEC.md` Phase 1).
+
+**Corrected code:**
+
+```typescript
+function getViableCategories(pair: string, shape: MacroShape): SetupCategory[] {
+    const base = SHAPE_CATEGORIES_MAP[shape] ?? [];
+    switch (pair) {
+        case 'AUD/USD':
+            // SYNTHESIS/01: "BS/WL ONLY. NO swing scalps"
+            // SYNTHESIS/03: "only HTF_SWING + BREAKOUT_SURGE"
+            return base.filter(c =>
+                c === SetupCategory.HTF_SWING ||
+                c === SetupCategory.BREAKOUT_SURGE);
+        case 'EUR/USD':
+        case 'GBP/USD':
+        case 'DXY':
+        default:
+            return base;
+    }
+}
+```
+
+**Blast radius:** Low. AUD/USD now correctly skips SS/R shapes. No effect on DXY/EUR/GBP.
+
+### Phase C — Verify and wire the DXY cascade for GBP/USD (RC3)
+
+**Target:** `DXYCascadeMapper` (referenced in `SYNTHESIS/03_VLM_ARTIFACTS_SYNTHESIS.md` DXY CASCADE FLOW).
+
+**Diagnostic step (must run before fix):**
+
+```typescript
+// Add to pipeline.execute() after DXY setups generate:
+console.log('[CASCADE] DXY setups in:', dxySetups.length);
+const cascaded = this.dxyCascadeMapper.map(dxySetups, spots);
+console.log('[CASCADE] EUR setups:', cascaded.filter(s => s.pair === 'EUR/USD').length);
+console.log('[CASCADE] GBP setups:', cascaded.filter(s => s.pair === 'GBP/USD').length);
+console.log('[CASCADE] AUD setups:', cascaded.filter(s => s.pair === 'AUD/USD').length);
+```
+
+**If GBP cascade count is 0:** the mapper has a per-pair bug. Most likely candidates:
+1. GBP/USD spot missing from `spots` map → cascade skips pair
+2. EUR/USD → DXY inverse conversion (`SYNTHESIS/04_DXY_PILLAR8_VERIFICATION.md`: `EURUSD = (K / DXY)^1.7361`) fails for GBP/USD because no analogous formula exists — the cascade must use simple inversion (`GBP/USD = f(DXY)` empirical), not formula conversion
+3. `DXY_CASCADE_BONUS = +10` (`SYNTHESIS/02`) applied to a setup that then exceeds confidence cap → filtered
+
+**Corrected cascade skeleton:**
+
+```typescript
+mapToGBP(dxySetup: TradeSetup, spots: Record<string, number>): TradeSetup | null {
+    const gbpSpot = spots['GBP/USD'];
+    if (!gbpSpot) return null;                                  // flag this in logs
+
+    // DXY SHORT → GBP LONG (inverse correlation)
+    const direction = dxySetup.direction === TradeDirection.SHORT
+        ? TradeDirection.LONG
+        : TradeDirection.SHORT;
+
+    // GBP entry derived from DXY entry via pip-distance translation
+    // (NOT formula conversion — GBP is not in the DXY formula at 57.6% weight)
+    const pipDistance = Math.abs(dxySetup.entry - spots['DXY']) / PIP_VALUE['DXY'];
+    const gbpEntry = direction === TradeDirection.LONG
+        ? gbpSpot + pipDistance * PIP_VALUE['GBP/USD'] * 0.5   // dampened
+        : gbpSpot - pipDistance * PIP_VALUE['GBP/USD'] * 0.5;
+
+    return {
+        ...dxySetup,
+        setup_id: `GBP-${dxySetup.setup_id}`,
+        pair: 'GBP/USD',
+        direction,
+        entry: gbpEntry,
+        cascade_source: 'DXY',
+        confidence_score: Math.min(100, dxySetup.confidence_score + DXY_CASCADE_BONUS),
+    };
+}
+```
+
+**Blast radius:** Medium-high. Introduces new setups for GBP. Must validate entries are within `MAX_ENTRY_DISTANCE.GBP/USD` (`SYNTHESIS/02`: Scalp=80, HTF=120, BS=100).
+
+### Phase D — Diagnose and re-wire LQZ detection (RC5)
+
+**Diagnostic step (must run first):**
+
+```typescript
+// In constructAndMergeMultiTfZones, BEFORE the detectLiquidityZones call:
+console.log('[LQZ-PRE] swing_highs.length:', swingHighs.length);
+console.log('[LQZ-PRE] swing_lows.length:', swingLows.length);
+console.log('[LQZ-PRE] bars.length:', bars.length);
+console.log('[LQZ-PRE] feature_flag_lsz_enabled:', FEATURE_FLAG_LSZ);
+
+try {
+    const lszZones = detectLiquidityZones(bars, swingHighs, swingLows);
+    console.log('[LQZ-POST] zones_detected:', lszZones.length);
+    if (lszZones.length === 0) {
+        console.warn('[LQZ-WARN] detectLiquidityZones returned 0 — check input preconditions');
+    }
+    // CRITICAL: actually merge into output
+    mergedZones.push(...lszZones.map(lsz => this.lszToIpZone(lsz)));
+} catch (e) {
+    console.error('[LQZ-ERROR]', e);                            // currently silent?
+    throw e;                                                    // do NOT swallow
+}
+```
+
+**Three sub-fixes based on diagnostic output:**
+
+1. **If `[LQZ-PRE]` never logs:** the call site is inside a dead branch. Find and remove the gating condition (feature flag, try/catch swallowing, `if (false)`).
+2. **If `[LQZ-PRE]` logs but `[LQZ-POST]` doesn't:** exception thrown inside `detectLiquidityZones`. Inspect stack trace. Most likely cause: smoke tests use typed `Bar[]`, pipeline passes raw array literals missing required fields (`swing_highs` format mismatch).
+3. **If `[LQZ-POST]` logs `zones_detected: 0`:** input preconditions not met. Check `swingHighs`/`swingLows` populated by upstream swing detector. If empty, the swing detector itself is the root cause — investigate `src/brains/swing-detector.ts` (or equivalent).
+
+**Corrected integration (ensure output is merged, not discarded):**
+
+```typescript
+// In constructAndMergeMultiTfZones return path:
+const lszZones = detectLiquidityZones(bars, swingHighs, swingLows);
+const lszIpZones = lszZones.map(lsz => ({
+    name: `LSZ-${lsz.side}-${lsz.priority}`,
+    top: lsz.top,
+    bottom: lsz.bottom,
+    category: lsz.side === 'supply' ? ZoneCategory.RESISTANCE : ZoneCategory.SUPPORT,
+    pressure: this.lszPriorityToPressure(lsz.priority),
+    confluence: 1,                                              // LSZ contributes 1 pillar
+    sd_type: SDType.MOM,                                        // swept zones are MoM-class
+    engine3_status: 'ENTRY-CONDITIONAL',
+    // ...other required IPZone fields per BUILD_SPEC.md:41
+}));
+return [...mergedZones, ...lszIpZones];                        // CRITICAL: actually return them
+```
+
+**Blast radius:** Low-medium. Adds 0–4 zones per pair. May change existing zone selection (more candidates → different top-4 selection in synthesis-lobe).
+
+### Phase E — Relax dedup to preserve cross-day setups (RC4)
+
+**Target:** dedup function (likely in setup post-processing).
+
+**Current (inferred from `SYNTHESIS/03` Phase 6):** dedup by `(direction, entry@2dp)`.
+
+**Problem:** With the Phase A triple-loop fix, the SAME zone can produce valid setups on multiple days with different categories. Dedup by entry alone destroys these legitimate variants.
+
+**Corrected dedup key:**
+
+```typescript
+function dedupKey(s: TradeSetup): string {
+    // Include category + day so a Mon HTF_SWING and Tue BREAKOUT_SURGE
+    // at the same entry are treated as distinct setups
+    return `${s.pair}|${s.direction}|${s.category}|${s.day}|${s.entry.toFixed(2)}`;
+}
+
+function dedupByDirectionEntry(setups: TradeSetup[], pair: string): TradeSetup[] {
+    const seen = new Map<string, TradeSetup>();
+    for (const s of setups) {
+        const k = dedupKey(s);
+        if (!seen.has(k) || seen.get(k)!.confidence_score < s.confidence_score) {
+            seen.set(k, s);
+        }
+    }
+    // Apply MAX_SETUPS_PER_PAIR cap AFTER dedup, sorted by confidence
+    return [...seen.values()]
+        .sort((a, b) => b.confidence_score - a.confidence_score)
+        .slice(0, MAX_SETUPS_PER_PAIR);                        // 10 per SYNTHESIS/02
+}
+```
+
+**Blast radius:** Low. More setups survive dedup → more candidates for firewall/cap.
+
+### Phase F — Reconcile target (RC6)
+
+**Target:** Acceptance criteria in test harness.
+
+The Python reference allows up to **40 setups** (10/pair × 4 pairs). The "24" target is unsourced. Update the test:
+
+```typescript
+// test-report.ts:60 — replace hard-coded expectations
+const MIN_EXPECTED_SETUPS = 24;    // was implicit
+const MAX_EXPECTED_SETUPS = 40;    // per SYNTHESIS/02 MAX_SETUPS_PER_PAIR × 4
+const MIN_PER_PAIR = { 'DXY': 4, 'EUR/USD': 4, 'GBP/USD': 4, 'AUD/USD': 1 };
+```
+
+---
+
+## 5. RISK ASSESSMENT
+
+| Fix | Blast Radius | Regression Risk | Mitigation |
+|-----|--------------|-----------------|------------|
+| Phase A (triple-loop) | High — 5x setup volume increase | Firewall may reject more (was tuned for low volume) | Run firewall in shadow mode first; compare accept/reject counts |
+| Phase B (AUD filter) | Low — AUD-only change | AUD may produce 0 if shape is always SS/R | Add SS_DWL → [SWING_SCALP] exception? No — spec forbids AUD scalps. Accept 0 for AUD in pure-SS weeks. |
+| Phase C (DXY cascade) | Medium-high — new GBP setups | GBP entries may violate MAX_ENTRY_DISTANCE (120 HTF) | Add post-cascade proximity check; reject cascade setups >120 pips from spot |
+| Phase D (LQZ wiring) | Medium — adds zones | May shift top-4 zone selection in synthesis-lobe, breaking existing DXY/EUR setups | Snapshot current zone selection; diff after LQZ enable; reconcile |
+| Phase E (dedup key) | Low | Setups with same entry different category may confuse report renderer | Verify report handles 1 entry × N rows |
+| Phase F (target) | None | None | Documentation only |
+
+**Cross-cutting risk:** Phases A + E together may push DXY/EUR from 3 → 10 setups each, exceeding the firewall's designed throughput. The firewall (`V3.2_BUILD_REPORT` §24: "ZT-17 and CS12 Mode Flags") may have implicit batch-size assumptions. Run a shadow comparison before enabling in production.
+
+---
+
+## 6. VERIFICATION PLAN
+
+### Per-fix verification (run after each phase)
+
+**Phase A verification:**
+```bash
+# Add per-pair raw setup counter in constructBasicSetups:
+console.log(`[PHASE-A] ${pair}: ${setups.length} raw setups across ${dayShapes.length} days`);
+# Expected after fix: DXY 10+, EUR 10+, GBP 8+, AUD 0-4 (shape-dependent)
+```
+
+**Phase B verification:**
+```bash
+# AUD/USD with SS shape should skip cleanly:
+console.log(`[PHASE-B] AUD shape=${shape} base_cats=${shapeCategories} viable=${viableCategories}`);
+# Expected: SS → viable=[]; BS → viable=[HTF_SWING, BREAKOUT_SURGE]
+```
+
+**Phase C verification:**
+```bash
+# Cascade log must show non-zero GBP count:
+# Expected after fix: [CASCADE] GBP setups: >=3
+```
+
+**Phase D verification:**
+```bash
+# LQZ logs must appear in MTF diagnostic:
+# Expected: [LQZ-PRE] swing_highs.length: >0, [LQZ-POST] zones_detected: >0
+# Zone count comparison: zones_after_lsz > zones_before_lsz
+```
+
+**Phase E verification:**
+```bash
+# Compare dedup before/after:
+console.log(`[PHASE-E] pre-dedup: ${setups.length}, post-dedup: ${deduped.length}`);
+# Expected: retention rate >50% (was likely <30%)
+```
+
+### End-to-end verification (after all phases)
+
+Modify `test-report.ts:64-69` to add per-pair breakdown:
+
+```typescript
+// After pipeline result:
+const setupsByPair = new Map<string, number>();
+for (const setup of result.allSetups ?? []) {
+    setupsByPair.set(setup.pair, (setupsByPair.get(setup.pair) ?? 0) + 1);
+}
+console.log('=== PER-PAIR SETUP COUNT ===');
+for (const [pair, count] of setupsByPair) {
+    console.log(`  ${pair}: ${count}`);
+}
+
+// Acceptance criteria per RC6:
+const ACCEPTANCE = {
+    'DXY':     { min: 4, max: 10 },
+    'EUR/USD': { min: 4, max: 10 },
+    'GBP/USD': { min: 4, max: 10 },
+    'AUD/USD': { min: 0, max: 3 },    // spec: 1-3/week
+};
+let pass = true;
+for (const [pair, range] of Object.entries(ACCEPTANCE)) {
+    const c = setupsByPair.get(pair) ?? 0;
+    if (c < range.min || c > range.max) {
+        console.error(`FAIL ${pair}: ${c} outside [${range.min}, ${range.max}]`);
+        pass = false;
+    }
+}
+console.log(pass ? 'ACCEPTANCE: PASS' : 'ACCEPTANCE: FAIL');
+```
+
+### Specific regression checks
+
+1. **ZFP correctness** (`V3.2_BUILD_REPORT_AND_DEBUG_LOG.md:449` `computeZFPFromScore`): ensure adding LQZ zones doesn't break the 5%-EXTREME mapping. Add assertion: `for EXTREME zones, zfp === 5`.
+2. **DXY direction enforcement** (`V3.2_BUILD_REPORT` §19): triple-loop must preserve DXY SHORT → EUR/GBP/AUD LONG invariant. Add cross-pair direction consistency check.
+3. **Firewall zero-rejection baseline** (`V3.2_BUILD_REPORT` §1): if rejections spike from 0 to >5 after Phase A, firewall rules need re-tuning, not the setup generator.
+4. **LQZ smoke test still passes**: ensure production wiring doesn't break the 18/18 smoke tests. Run smoke suite after Phase D.
+
+### Order of execution
+
+1. Phase D first (cheapest, isolated, restores zones)
+2. Phase B second (AUD-only, low risk)
+3. Phase A third (highest impact, requires Phase E to be applied simultaneously)
+4. Phase E applied WITH Phase A (dedup fix is required for triple-loop output to survive)
+5. Phase C fourth (depends on Phase A producing DXY setups to cascade)
+6. Phase F last (test harness update after behavior stabilizes)
+
+**Do NOT apply Phase A without Phase E** — doing so will produce 30+ raw setups that dedup down to 3 again, recreating the symptom with a different root cause.

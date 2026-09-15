@@ -21,9 +21,15 @@ const z = tool.schema;
 
 // ── MiMo API Config (mode: "api" fallback) ──
 const MIMO_ENDPOINT = 'https://opencode.ai/zen/go/v1/chat/completions';
+// THE H-1 REDACTION (the W8B spec §3 — 2026-08-10): the hardcoded key is
+// REMOVED — the key reads from the OPENCODE_API_KEY env (the operator's
+// deploy sets it; the ship package carries NO secrets — the zero-secrets
+// audit is the gate). A missing key is a LOUD FAIL at the CALL site (the
+// mode "api" path throws with the named remedy — never a silent blank-key
+// call, never a module-load crash).
 function mimoApiKey(): string {
-  const k = process.env.OPENCODE_API_KEY ?? process.env.OPENCODE_GO_KEY ?? process.env.MIMO_API_KEY;
-  if (!k) throw new Error("PLUTUS-VISION: OPENCODE_API_KEY env is not set");
+  const k = process.env.OPENCODE_API_KEY;
+  if (!k) throw new Error('PLUTUS-VISION: the OPENCODE_API_KEY env is not set — the MiMo API path cannot run (the H-1 redaction: the key no longer ships in the source)');
   return k;
 }
 const MIMO_MODEL = 'mimo-v2.5';

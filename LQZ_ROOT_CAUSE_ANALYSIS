@@ -1,0 +1,351 @@
+# DIAGNOSTIC ANALYSIS: plutus-ts LQZ (Liquidity Zone) Silent Failure
+
+---
+
+## 1. CLASSIFICATION
+
+**Type:** Task — Root-cause diagnosis of a silent integration failure.
+
+**Category:** Integration regression / swallowed exception / upstream dependency gap.
+
+**Severity:** Critical (feature appears wired but contributes zero output; mask of completeness hides dead code path).
+
+**Nature:** Not a logic bug, not a test failure. The function is *correct in isolation* and *dead in the pipeline*. This is a **wiring + dependency cascade** problem, not an algorithm problem. The 18/18 smoke tests prove the function body is sound; the pipeline evidence proves the call site is not transferring live data into the function body.
+
+---
+
+## 2. ROOT CAUSE ANALYSIS (Repeated "Why?")
+
+**Symptom:** LQZ produces 0 zones in pipeline. Zone counts are identical (61, 56, 59, 65) before and after the "LQZ fix." No LQZ detection logs appear in the MTF diagnostic.
+
+### Why #1 — Why are there zero LQZ zones?
+
+Because the LQZ detection function is **not executing its core detection body** in the pipeline. The proof is the absence of any LQZ log lines in the MTF diagnostic. A function that loops over 500 1H bars, evaluates swing structures, and emits zones would produce at minimum entry/exit/iteration logs. Zero logs ⇒ the function either (a) returns before its first `console.log`/`logger.info`, (b) throws before logging, or (c) is never reached at all.
+
+**Evidence — no logs:** "MTF diagnostic shows NO LQZ detection logs at all" (problem statement). This is the single most important signal. Logs are not "missing because LQZ found nothing" — a well-instrumented detector logs *every candidate it considers*, not just every hit. Zero candidate logs = function body never runs.
+
+### Why #2 — Why doesn't the function body run, if line 3277 calls it?
+
+Because the call at `plutus-tte-pipeline.ts:3277` is one of three patterns, all of which are consistent with "call exists but never executes productively":
+
+1. **Guarded by an upstream-null check** — `if (pairATR) { detectLiquidityZones(...) }`. When `pairATR` is undefined, the branch is skipped entirely. No log, no call.
+2. **Wrapped in try/catch that swallows** — `try { detectLiquidityZones(...) } catch (e) { /* nothing */ }`. An internal throw on missing ATR is silently absorbed.
+3. **Called with `undefined` ATR and early-returns** — `if (!atr) return [];` at the top of `detectLiquidityZones` returns `[]` before any logging.
+
+**Evidence — ATR not computed:** "ATR not computed (pairATR: not computed)" (problem statement). This is the smoking gun. LQZ detectors universally require ATR for zone thickness sizing (per `BUILD_SPEC.md:50` LSZ interface fields `thickness`, and `SYNTHESIS/01_CONTEXT_DOCS_SYNTHESIS.md` which specifies THICK/THIN buffer classification — buffer thickness is ATR-derived). ATR is the *input* the LQZ function needs; it is *missing* in the pipeline; therefore the LQZ function either refuses to run or runs degenerate.
+
+### Why #3 — Why is ATR not computed in the pipeline, when 1H bars are available (500)?
+
+Because the ATR computation step is **upstream of** and **decoupled from** the LQZ call at line 3277. The 500 1H bars exist as raw OHLC, but the ATR indicator is computed in a separate pipeline step that is either:
+
+- Not invoked for the pair under test (the `pairATR: not computed` string suggests a lookup miss — `pairATR` is keyed by pair, and the ATR step ran for some pairs but not all, or ran but failed to store under the expected key).
+- Invoked but its result is written to a different scope (e.g., stored on a per-pair map under pair name, while the LQZ caller reads from a different map — classic key-mismatch silent failure).
+- Invoked but threw and its result is `undefined`, with the consumer treating `undefined` as "skip LQZ".
+
+**Evidence — 1H bars present, ATR absent:** "1H bars are available (500 bars)" + "pairATR: not computed" (problem statement). These two facts together eliminate the hypothesis that "there isn't enough data." The data is there; the *derivation* of ATR from that data is what's broken. This is upstream of LQZ.
+
+### Why #4 — Why do tests pass (18/18) but the pipeline fails?
+
+Because the smoke tests construct synthetic fixtures where ATR is **pre-supplied** (a number literal in the test harness). The tests verify `detectLiquidityZones(bars, atr=12.5, ...)` produces correct zones. They do **not** verify the pipeline wiring — that `computeATR(bars)` is called, its return is stored, and `detectLiquidityZones` reads that stored value. The contract tested is "function body correctness." The contract broken is "pipeline dataflow correctness." These are orthogonal.
+
+**Evidence — test harness shape:** `test-report.ts:14-36` constructs the pipeline via the factory pattern (YahooFinanceClient, InvestingliveClient, etc.) and runs `pipeline.execute()`. The 18/18 smoke tests are a *separate* test file (not shown) that almost certainly calls `detectLiquidityZones` directly with hand-built inputs. There is no test that asserts `result.totalZones > 61` *specifically because LQZ contributed* — only that zones ≥ some floor. The floor was already met by the non-LQZ pillars, so LQZ deadness is invisible to the test.
+
+### Why #5 — Why are zone counts *identical* (61, 56, 59, 65)?
+
+Because the LQZ function is returning `[]` (empty), and `zoneMap.zones` is `Array.concat`-style merged downstream — `zones = [...existingZones, ...lqzZones]`. When `lqzZones.length === 0`, the zone array is unchanged. The counts 61/56/59/65 are the **non-LQZ baseline** for the four pairs. The "fix" added a code path that contributes 0; naturally the sum is unchanged.
+
+**Evidence — merge pattern:** `V3.2_FIX_PLAN.md:97-99` shows the function signature `constructBasicSetups(... lszZones: LSZResult[] = [], ...)` with default empty array. This default-parameter pattern is the *signature of a function designed to silently accept missing input*. The LQZ call site at line 3277 almost certainly passes either `lszZones` (undefined → defaults to `[]`) or the result of `detectLiquidityZones(...)` which itself returns `[]` on missing ATR. Either way, zero contribution.
+
+### Why #6 — Why does no one notice during dev?
+
+Because:
+- No log emission at the **call site** (`plutus-tte-pipeline.ts:3277`) — no `logger.info('LQZ produced N zones')` after the call.
+- No log emission at the **early-return path** inside `detectLiquidityZones` — `if (!atr) return [];` silently.
+- The smoke tests green-light the function body.
+- The zone-count assertion in the integration test has a floor that the non-LQZ path already clears.
+
+This is a **triple-blind silent failure**: no call-site log, no return-path log, no integration assertion sensitive to LQZ contribution.
+
+### ROOT CAUSE (Final)
+
+**The LQZ detection function is correct but its pipeline integration is dead because its required input — `pairATR` — is never populated upstream. The function silently degrades to `return []` (or is guarded out), producing zero zones and zero logs. The "LQZ fix" wired a call site but did not wire the data dependency. Tests pass because they bypass the data dependency by injecting ATR directly. The pipeline never injects ATR.**
+
+Secondary contributors (compounding the silence):
+- No call-site logging at `plutus-tte-pipeline.ts:3277`.
+- No early-return logging inside `detectLiquidityZones` on the missing-ATR path.
+- No integration test asserting `lqzZones.length > 0` or `totalZones > nonLqzBaseline`.
+
+---
+
+## 3. EVIDENCE INDEX (with file:line)
+
+| # | Evidence | Source | Implication |
+|---|----------|--------|-------------|
+| E1 | "Pipeline calls detectLiquidityZones at line 3277" | Problem statement | Call site exists — function is invoked somewhere |
+| E2 | "MTF diagnostic shows NO LQZ detection logs at all" | Problem statement | Function body never executes its log statements |
+| E3 | "ATR not computed (pairATR: not computed)" | Problem statement | Required LQZ input is missing in pipeline |
+| E4 | "1H bars are available (500 bars)" | Problem statement | Raw data exists; derivation is broken, not data |
+| E5 | "Zone counts IDENTICAL before and after LQZ fix (61, 56, 59, 65)" | Problem statement | LQZ contributes exactly 0 zones per pair |
+| E6 | "LQZ detection function exists and passes 18/18 smoke tests" | Problem statement | Function body is correct in isolation |
+| E7 | `constructBasicSetups(... lszZones: LSZResult[] = [], ...)` | `V3.2_FIX_PLAN.md:97` | Default-empty-array signature enables silent no-op |
+| E8 | LSZ interface requires `thickness` field | `BUILD_SPEC.md:50` | Thickness requires ATR — establishes ATR as hard dependency |
+| E9 | "THICK/THIN buffer classification" elemental density system | `SYNTHESIS/01_CONTEXT_DOCS_SYNTHESIS.md` (Rockets section) | Confirms ATR is the canonical thickness source |
+| E10 | "Zone reaction counter / swing H/L detection" | `SYNTHESIS/05_TTE_SPEC_IMPLEMENTATION_BIBLE.md` Pillar 5 | LQZ detectors work on swing H/L — these DO exist in 1H bars, so absence is NOT data |
+| E11 | `pipeline.execute(weekStart, outputDir)` integration entry | `test-report.ts:60` | Integration test runs full pipeline, not isolated function |
+| E12 | "D- grade — entry prices disconnected from market reality" | `ZERO_TRUST_AUDIT.md` Executive Summary | Zone construction has prior history of silent correctness issues; same engineering culture produced LQZ wiring |
+| E13 | "FM-02: Overshoot Buffer Rule — DXY 0.10-0.15, GBP/USD 35p" | `SYNTHESIS/04_DXY_PILLAR8_VERIFICATION.md` | Buffer sizes are ATR-derived per pair — confirms ATR centrality |
+
+---
+
+## 4. FIX STRATEGY (Prioritized Phases)
+
+### Phase 1 — Instrument the silence (HARDENING, before any logic change)
+
+**Goal:** Convert the silent failure into a loud failure. Do not fix logic until you can SEE the failure.
+
+**File:** `plutus-tte-pipeline.ts` near line 3277 (call site).
+
+**Change:** Wrap the call in explicit visibility:
+
+```typescript
+// plutus-tte-pipeline.ts, around line 3277
+const lqzBars1H = zoneMap.bars1H?.[pair] ?? [];
+const pairATR = zoneMap.atr?.[pair];
+
+logger.info('[LQZ] pre-call diagnostic', {
+  pair,
+  bars1H: lqzBars1H.length,
+  pairATR,
+  pairATRType: typeof pairATR,
+  pairATRKeys: Object.keys(zoneMap.atr ?? {}),
+});
+
+let lqzZones: LSZResult[] = [];
+try {
+  lqzZones = detectLiquidityZones(lqzBars1H, pairATR, pair);
+  logger.info('[LQZ] post-call result', {
+    pair,
+    zonesReturned: lqzZones.length,
+    firstZone: lqzZones[0] ?? null,
+  });
+} catch (e) {
+  logger.error('[LQZ] THREW EXCEPTION', {
+    pair,
+    error: e instanceof Error ? e.message : String(e),
+    stack: e instanceof Error ? e.stack : undefined,
+  });
+  // DO NOT swallow — surface to pipeline.failures so it's visible
+  this.failures.push({ step: 'LQZ-detection', error: `pair=${pair}: ${e}` });
+}
+```
+
+**Why this first:** The three competing hypotheses (guard-skip / swallowed-throw / early-return) are indistinguishable without instrumentation. This block resolves which one in a single pipeline run. No logic change, pure observability. Zero risk.
+
+**Expected outcome:** The run will print one of:
+- `pairATR: undefined, pairATRKeys: []` → ATR never computed for anyone (Phase 2 root).
+- `pairATR: undefined, pairATRKeys: ['EUR/USD','GBP/USD']` but we're processing AUD/USD → key mismatch (Phase 3 root).
+- `[LQZ] THREW EXCEPTION` → swallowed throw inside function (Phase 4 root).
+- `zonesReturned: 0` with valid `pairATR` → function-body edge case (Phase 5 root).
+
+### Phase 2 — Fix ATR upstream (ROOT CAUSE — most likely)
+
+**Goal:** Ensure `zoneMap.atr[pair]` is populated for every pair before LQZ is called.
+
+**File:** Wherever ATR is computed (likely `src/brains/synthesis-lobe.ts` or `src/engine/zone-builder.ts` based on `BUILD_SPEC.md:41-50` zone construction phase).
+
+**Change:** Add the ATR computation step explicitly and store under a stable key:
+
+```typescript
+// In the zone-construction phase, BEFORE constructBasicSetups is called
+import { computeATR } from '../indicators/atr.js';
+
+for (const pair of pairs) {
+  const bars1H = harvester.getBars(pair, '1H');
+  if (!bars1H || bars1H.length < 14) {
+    logger.warn('[ATR] insufficient bars', { pair, bars: bars1H?.length ?? 0 });
+    continue;
+  }
+  const atr = computeATR(bars1H, 14);  // Wilder's 14-period ATR
+  zoneMap.atr = zoneMap.atr ?? {};
+  zoneMap.atr[pair] = atr;
+  logger.info('[ATR] computed', { pair, atr, bars: bars1H.length });
+}
+
+// AFTER the loop, BEFORE LQZ calls:
+const missingATR = pairs.filter(p => zoneMap.atr?.[p] === undefined);
+if (missingATR.length > 0) {
+  logger.error('[ATR] MISSING for pairs — LQZ will be skipped', { missingATR });
+}
+```
+
+**Why this is likely the root:** Evidence E3 (`pairATR: not computed`) is direct proof this step is failing or absent. Evidence E4 (500 1H bars present) proves the *data* is there, so the issue is the *derivation step*, not data acquisition.
+
+**Blast radius:** Medium. ATR is consumed by SL buffer sizing (`SYNTHESIS/04_DXY_PILLAR8_VERIFICATION.md` FM-02), zone thickness (`BUILD_SPEC.md:50`), and now LQZ. Computing it correctly will affect multiple downstream consumers — verify they don't already have a (different, possibly wrong) ATR source.
+
+### Phase 3 — Fix key/scope mismatch (ALT ROOT — if Phase 1 reveals partial population)
+
+**Goal:** If Phase 1 shows `pairATRKeys: ['EUR/USD','GBP/USD']` but AUD/USD is missing, the bug is key mismatch, not absence.
+
+**File:** Both the ATR producer and the LQZ consumer.
+
+**Pattern to look for:**
+
+```typescript
+// BROKEN — producer writes one key shape, consumer reads another
+zoneMap.atr['EURUSD'] = computeATR(...);       // no slash
+// vs at consumer:
+const atr = zoneMap.atr['EUR/USD'];            // with slash → undefined
+```
+
+**Fix:** Standardize on ONE pair-key convention everywhere. Add a `normalizePairKey()` utility:
+
+```typescript
+// src/utils/pair-key.ts
+export function normalizePairKey(pair: string): string {
+  return pair.replace('/', '').toUpperCase();  // 'EUR/USD' → 'EURUSD'
+}
+
+// Producer:
+zoneMap.atr[normalizePairKey(pair)] = computeATR(...);
+
+// Consumer:
+const atr = zoneMap.atr[normalizePairKey(pair)];
+```
+
+**Why this matters:** The diagnostic literally prints `pairATR: not computed` — this string is almost certainly emitted by a fallback template like `pairATR: ${zoneMap.atr?.[pair] ?? 'not computed'}`. The fact that the fallback fires means the lookup misses. If ATR *were* computed but under a different key, you'd see exactly this symptom.
+
+### Phase 4 — Remove silent early-return inside detectLiquidityZones
+
+**Goal:** Even when ATR is missing, the function must log and document its degeneracy.
+
+**File:** The `detectLiquidityZones` source file (likely `src/brains/lsz-detector.ts` per `BUILD_SPEC.md` "NEW src/brains/lsz-detector.ts").
+
+**Change:** Replace silent returns with loud returns:
+
+```typescript
+// BEFORE (hypothetical — matches symptom):
+export function detectLiquidityZones(bars: Bar[], atr: number | undefined, pair: string): LSZResult[] {
+  if (!atr || atr <= 0) return [];                    // silent
+  if (!bars || bars.length < 50) return [];           // silent
+  // ... detection body with logs ...
+}
+
+// AFTER:
+export function detectLiquidityZones(bars: Bar[], atr: number | undefined, pair: string): LSZResult[] {
+  if (!atr || atr <= 0) {
+    logger.warn('[LQZ] SKIP — atr invalid', { pair, atr, barsAvailable: bars?.length ?? 0 });
+    return [];
+  }
+  if (!bars || bars.length < 50) {
+    logger.warn('[LQZ] SKIP — bars insufficient', { pair, bars: bars?.length ?? 0 });
+    return [];
+  }
+  logger.info('[LQZ] start', { pair, bars: bars.length, atr });
+  // ... detection body ...
+  logger.info('[LQZ] done', { pair, candidates: rawZones.length, emitted: finalZones.length });
+  return finalZones;
+}
+```
+
+**Why:** This converts *future* silent failures into diagnosed ones. Defense-in-depth per the systematic-debugging skill (`defense-in-depth.md`).
+
+### Phase 5 — Function-body edge case (UNLIKELY — only if Phase 1 shows valid ATR + 0 zones)
+
+**Goal:** If Phase 1 instrumentation shows `pairATR` is a valid number AND `zonesReturned: 0`, then the bug is inside the detection body — likely an over-strict filter.
+
+**Pattern to audit inside detectLiquidityZones:**
+
+```typescript
+// Common over-strict filters that produce 0 zones on real data:
+const MIN_SWING_PIP_MULTIPLIER = 1.5;
+swings.filter(s => Math.abs(s.high - s.low) >= atr * MIN_SWING_PIP_MULTIPLIER);
+// If 1H swings on these pairs are < 1.5×ATR (which is common in consolidation), all are filtered.
+
+// Or threshold in pips that doesn't account for pair pip size:
+swings.filter(s => s.pipDistance > 20);  // 20 pips on DXY = 0.20; on EUR/USD = 0.0020
+// If pipDistance is computed in raw price units without pip normalization, threshold misfires.
+```
+
+**Fix:** Loosen or pair-parametrize thresholds. Use `PIP_VALUE[pair]` from `SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md` constants table.
+
+---
+
+## 5. RISK ASSESSMENT
+
+| Fix | Blast Radius | Reversibility | Risk |
+|---|---|---|---|
+| **Phase 1** (instrument) | Zero — pure logging | Trivial | None. Highest-value first step. |
+| **Phase 2** (compute ATR) | Medium — ATR feeds SL buffers, zone thickness, LQZ. Wrong ATR will shift SL distances across all setups | Medium — add step, don't replace existing if present | Medium. Verify no existing ATR source is being shadowed. Compare pre/post `sl_distance_pips` in setups. |
+| **Phase 3** (key normalization) | High — touches every pair-keyed map in the codebase (zones, spots, atr, bars, setups) | Low once normalized; high if done ad hoc | High if done as a one-off string replace. **Mitigation:** centralize via `normalizePairKey()` and grep all `[pair]` accesses. |
+| **Phase 4** (loud returns) | Low — only adds logs | Trivial | None. Defense in depth. |
+| **Phase 5** (loosen filters) | Low — only affects LQZ output volume | Easy | Low. Only pursue if Phase 1 confirms this is the layer. |
+
+**Critical interaction risk:** Phase 2 changes ATR for *all consumers*, not just LQZ. Per `V3.2_BUILD_REPORT_AND_DEBUG_LOG.md:17` ("ZFP Computation Fix"), the ZFP computation already had a propagation bug fixed once. ATR changes may interact with ZFP via pressure-degree mapping (`SYNTHESIS/02_ENGINE3_V8_PORTING_GUIDE.md` PressureDegree enum). Run the full integration test (`test-report.ts`) before and after, and diff: zone count, setup count, `passedFirewall`, average `sl_distance_pips`. If `sl_distance_pips` distribution shifts materially, ATR is now feeding SL sizing differently — investigate before shipping.
+
+**Test-masking risk (per Evidence E6):** The 18/18 smoke tests will continue to pass regardless of which fix is applied, because they bypass the pipeline. **Do not treat smoke tests as regression coverage for this fix.** Add a new integration assertion (see Phase 6).
+
+---
+
+## 6. VERIFICATION PLAN
+
+### V1 — Phase 1 verification (instrumentation)
+
+Run `test-report.ts` once. **Expected:** console now contains `[LQZ] pre-call diagnostic` and either `[LQZ] post-call result` or `[LQZ] THREW EXCEPTION` for each of the 4 pairs.
+
+**Pass criterion:** At least one log line per pair from the LQZ block. If still zero log lines, the call site at line 3277 is in a dead branch — investigate control flow *around* 3277 (is it inside `if (someFlag)` where `someFlag` is false?).
+
+### V2 — Phase 2 verification (ATR populated)
+
+After Phase 2, run pipeline. **Expected:** `[ATR] computed` log for each of DXY, EUR/USD, GBP/USD, AUD/USD with a numeric `atr` value. `[ATR] MISSING` log must be empty.
+
+**Pass criterion:** `Object.keys(zoneMap.atr).length === 4` and all values are finite numbers > 0.
+
+### V3 — LQZ contribution verification (the actual goal)
+
+Add to `test-report.ts` after the existing `=== PIPELINE RESULT ===` block:
+
+```typescript
+// V3 — verify LQZ is actually contributing zones
+const lqzZoneCount = result.zones?.filter(z => z.source === 'LQZ' || z.source === 'lsz').length ?? -1;
+console.log(`LQZ zones: ${lqzZoneCount}`);
+if (lqzZoneCount === 0) {
+  console.error('FAIL: LQZ contributed 0 zones — silent failure persists');
+  process.exit(1);
+}
+if (lqzZoneCount > 0) {
+  console.log(`PASS: LQZ contributed ${lqzZoneCount} zones`);
+}
+```
+
+**Pass criterion:** `LQZ zones: N` where N > 0, and the new total zone count is **strictly greater than** the pre-fix baseline (61, 56, 59, 65) for at least one pair. If counts are still 61/56/59/65, LQZ is still dead.
+
+### V4 — Regression verification (no collateral damage)
+
+Diff these metrics before/after the fix:
+- `result.totalSetups` — must not drop (if it drops, LQZ zones are feeding bad data into setup generation; investigate).
+- `result.passedFirewall` / `result.rejectedFirewall` — firewall behavior should be stable or improve.
+- Average `sl_distance_pips` per pair — if this shifts > 10%, ATR is now feeding SL sizing differently. Confirm intended.
+- `result.elapsedMs` — should increase modestly (LQZ work added). A 2x increase indicates a performance bug in the detection body.
+
+### V5 — No-new-silent-failures verification
+
+After all fixes, grep the diff for these anti-patterns:
+
+```bash
+# Anti-pattern 1: silent catch
+grep -rn "catch.*{.*}" src/ | grep -v "logger\|console\|failures.push"
+
+# Anti-pattern 2: default-empty-array masking
+grep -rn ": LSZResult\[\] = \[\]" src/
+
+# Anti-pattern 3: unconditional early return on input
+grep -rn "if (!atr)" src/brains/
+```
+
+**Pass criterion:** Every `catch` logs or pushes to failures; every default-empty-array param has a corresponding non-empty assertion at the call site; every `if (!atr)` is paired with a `logger.warn`.
+
+---
+
+## 7. SUMMARY (One-paragraph root cause)
+
+LQZ produces zero zones because its required input `pairATR` is never populated in the pipeline (Evidence E3: `pairATR: not computed`), even though the raw 1H bars exist (Evidence E4: 500 bars). The LQZ function, finding no ATR, silently returns `[]` (or is guarded out before being called), producing zero zones (Evidence E5: identical counts) and zero logs (Evidence E2: no LQZ diagnostic output). The 18/18 smoke tests pass because they inject ATR directly into the function, bypassing the broken pipeline dataflow (Evidence E6). The fix is not in the LQZ function — it is upstream, in the ATR computation step that populates `zoneMap.atr[pair]`. Instrument first (Phase 1) to confirm the exact failure mode, then repair the ATR step (Phase 2) or the pair-key mismatch (Phase 3), then harden the function against silent degradation (Phase 4). The verification gate is strict: total zone count must increase beyond the 61/56/59/65 baseline for at least one pair, or the fix has not worked.

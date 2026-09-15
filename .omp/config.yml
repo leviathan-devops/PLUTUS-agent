@@ -1,8 +1,0 @@
-worktree:
-  base: /home/leviathan/JARVIS_WORKSPACE/worktrees/agent-managed
-memory:
-  backend: mnemopi
-mnemopi:
-  scoping: per-project-tagged
-tools:
-  approvalMode: yolo

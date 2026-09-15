@@ -236,6 +236,11 @@ function assembleZone(input: {
     direction,
     moveWindowBars: input.moveWindowBars,
     minMovePrice: input.minMovePrice,
+    // W6 (the §2.7.5 — the M-6 kill): the source timeframe rides the input —
+    // the 30m/15m-is-never-a-BoM-origin telescoping law is folded INSIDE the
+    // classifier's branch order (bom-mom.ts:118 — the ONE copy). The two
+    // belt-and-suspenders forces (ob-engine.ts:399/:459) are REMOVED.
+    timeframe: tf,
   });
 
   // §6.4 freshness recurrence over event-granularity retests, scanned
@@ -390,13 +395,11 @@ export function buildZoneMap(input: ObEngineInput): ZoneModel[] {
         obIndex: raw.obIndex, floor: raw.floor, ceiling: raw.ceiling, type: raw.type,
         moveWindowBars: params.moveWindowBars, minMovePrice, pillarResult,
       });
-      // T4: 30m is NEVER a BoM origin (operator 2026-07-31) — force MoM at
-      // construction. Belt+ suspenders with the §6.3 bom-mom.ts gate: the
-      // classifier runs its piecewise anatomy path here (assembleZone passes
-      // no `timeframe` — see bom-mom.ts:106/118) and can emit 'BoM' at 30m
-      // scale; a session-scale OB cannot evidence the multi-session
-      // displacement a BoM origin requires. 4H and 1H keep classifier output.
-      if (tf === '30m') zone.classification = 'MoM';
+      // W6 (the §2.7.5 — the M-6 kill): the T4 30m-is-never-a-BoM-origin force
+      // was REMOVED — assembleZone now passes `timeframe: tf` (ob-engine.ts:233)
+      // and the classifier's OWN branch order folds the law (bom-mom.ts:118 —
+      // the ONE copy). A 30m BoM-shaped OB still classifies MoM via the
+      // classifier's timeframe gate — the behavior is unchanged, the copies die.
       zones.push(zone);
     }
   }
@@ -453,10 +456,10 @@ export function buildZoneMap(input: ObEngineInput): ZoneModel[] {
       zone.freshness = runFreshnessMachine(ozEvents);
       zone.zfp = zfpFromState(zone.classification, zone.freshness);
     }
-    // T4: 30m is NEVER a BoM origin (operator 2026-07-31) — the same force the
-    // native 30m lane applies above (ob-engine.ts:351). The OBCV machine already
-    // rejects 30m BoM (orphan rule + prior-move classifier), belt+ suspenders.
-    if (zone.timeframe === '30m') zone.classification = 'MoM';
+    // W6 (the §2.7.5 — the M-6 kill): the T4 30m-is-never-a-BoM-origin force
+    // was REMOVED — the OBCV machine ALREADY rejects 30m BoM (orphan rule +
+    // prior-move classifier — its own classification is 'MoM' for 30m). The
+    // belt-and-suspenders copy dies; the behavior is unchanged.
     zones.push(zone);
     existingZoneIds.add(oz.id);
   }
@@ -479,9 +482,23 @@ export function buildZoneMap(input: ObEngineInput): ZoneModel[] {
     // no parent found → z1 is an INDEPENDENT top-level zone (kept as-is)
   }
 
-  // ── T3: 1H→30m minor refinement (operator 2026-07-31) — a 30m zone inside a
-  //    same-type 1H zone refines the 1H zone's minor edge; the 30m zone is KEPT
-  //    with its refinement tag (and the telescoping parent link for Phase 4). ──
+  // ── T3: 1H→30m minor refinement (operator 2026-07-31 — CME §1.3 T3 verbatim:
+  //    "30m zones entirely within a 1H zone (same type) refine the 1H zone's
+  //    minor edge; tag '30m Refined 1H'"). A 30m zone inside a same-type 1H
+  //    zone refines the 1H zone's MINOR edge (the operator's telescoping
+  //    doctrine: "S/D zones are charted on 4H and refined down to 1H, also can
+  //    be charted on 1H and refined down to 30m — nested S/D zones can exist").
+  //    The 30m zone is KEPT with its refinement tag + the telescoping parent
+  //    link (Phase 4). The completion adds the two doctrine effects the E1
+  //    telescoping acceptance requires: (a) the parent's minor edge refines
+  //    toward the 30m edge, and (b) the parent's confluence gains the dual-TF
+  //    +3 / triple-TF +5 bonus (Law 32, cap 14).
+  //
+  //    Phase 1 — the CONTAINMENT pass (against the parents' UNMUTATED
+  //    geometry): tag every 30m child + record the parent link. The edge
+  //    refinement is deferred to Phase 2 so a tightened parent can NEVER
+  //    invalidate a sibling child's containment mid-iteration.
+  const t3ChildrenByParent = new Map<string, ZoneModel[]>();
   for (const z30 of zones.filter(z => z.timeframe === '30m')) {
     const parent = zones.find(z => z.timeframe === '1H' && z.type === z30.type
                                 && z30.bottom >= z.bottom && z30.top <= z.top);
@@ -489,8 +506,35 @@ export function buildZoneMap(input: ObEngineInput): ZoneModel[] {
       z30.refinedLabel = '30m Refined 1H';
       z30.nestedWithin = parent.id;
       z30.parent = parent;
+      const children = t3ChildrenByParent.get(parent.id);
+      if (children) children.push(z30);
+      else t3ChildrenByParent.set(parent.id, [z30]);
     }
     // NO parent → the zone remains (it may be a top-level 30m MoM reaction point — still valid)
+  }
+  // Phase 2 — the PARENT-SIDE refinement (applied once per parent, AFTER all
+  // containment tests). The MINOR edge = the edge OPPOSITE the operative
+  // (active) edge — the SUPPLY's floor (its operative edge is the ceiling —
+  // price attacks from below) and the DEMAND's ceiling (its operative edge is
+  // the floor). It tightens TOWARD the nested 30m edge (the SUPPLY floor moves
+  // UP to the most-refined nested 30m floor; the DEMAND ceiling moves DOWN to
+  // the most-refined nested 30m ceiling — the tightest child edge wins, the
+  // most precise minor boundary). The telescoping confluence bonus follows:
+  // dual-TF (1H + 30m) +3; triple-TF (4H + 1H + 30m) +5 when the 1H parent is
+  // ITSELF the 4H→1H refinement (tagged '1H Refined 4H' by the T2 pass) —
+  // Math.min cap 14 (the same Law-32 cap the T2 pass uses).
+  for (const [parentId, children] of t3ChildrenByParent) {
+    const parent = zones.find(z => z.id === parentId);
+    if (!parent) continue; // never expected — the children reference a live parent
+    if (parent.type === 'SUPPLY') {
+      const refinedFloor = Math.max(...children.map(c => c.bottom));
+      if (refinedFloor > parent.bottom) parent.bottom = refinedFloor;
+    } else {
+      const refinedCeiling = Math.min(...children.map(c => c.top));
+      if (refinedCeiling < parent.top) parent.top = refinedCeiling;
+    }
+    const isTripleTf = parent.refinedLabel === '1H Refined 4H';
+    parent.confluence = Math.min(14, (parent.confluence ?? 0) + (isTripleTf ? 5 : 3));
   }
 
   // Deterministic output order: timeframe (4H→1H→30m), then price ascending.

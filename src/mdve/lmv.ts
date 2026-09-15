@@ -65,6 +65,19 @@ import { classifyTouch } from './lqz-matrix.js';
 import type { TouchContext, Timeframe } from './lqz-matrix.js';
 import type { TouchKind } from './types.js';
 import { barAnatomy, computeAtr, isoWeekKey } from './util.js';
+// W4 — THE CANDLE-PRESSURE LEXICON (the semantic intent layer, the operator's
+// "pressure mechanics = semantic intent"). The lexicon decodes the per-candle
+// battle semantics (defend/reject/sweep/dwell/pass) and its reject family's
+// side-vote mapping feeds the LMV side determination below — the W4 wiring at
+// lmv.ts:618-645 (the LEXICON_SPEC LEXICON 1: "the WICK_REJECT predicate → the
+// side vote SELL (fromAbove) / BUY (fromBelow)"). The import graph is acyclic
+// (the lexicons import only types/util — nothing imports lmv).
+import { candlePressureLexicon, candleSideVote } from './lexicons/index.js';
+// THE TEMPORAL GATE (the operator's temporal law — the locked run-anchor
+// "today"): the SIDE VOTE's window is anchored at the locked run anchor
+// when the gate is armed; the legacy path falls back to the final bar.
+// temporal.ts is self-contained (zero imports) — no circular dependency.
+import { isRunAnchorLocked, getRunAnchorMs } from './temporal.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // THE TYPES (§2.2/§2.4 — EXACT; consumers depend on them)
@@ -147,6 +160,11 @@ export interface LqzZoneMatrix {
    *  for 1H rows and for lower-TF rows the higher tiers cannot see (the
    *  fine rungs — exactly the telescope's purpose). */
   refinedLabel?: string;
+  /** W4 — THE CANDLE-PRESSURE LEXICON's Phase-B demands (the touch-kind
+   *  semantic reads per window reaction, timestamped) — the audit trail the
+   *  lexicon appends to the rung's row (the semantic intent layer). Absent
+   *  for the pre-W4 lanes / zones with no window reactions. */
+  semanticReads?: string[];
 }
 
 /** The LMV dataset = the table of all LQZ zone-matrices, price-ordered. */
@@ -241,6 +259,33 @@ const MIN_REACTION_CANDLES = 3;
  * defend) before a level is a confirmed LQZ.
  */
 const MIN_DISTINCT_KINDS = 2;
+
+/**
+ * THE SIDE-VOTE WINDOW = 3 trading days (72 1H bars) up to the present.
+ * THE OPERATOR'S RECENCY LAW (verbatim — the doctrine this serves):
+ *   "RECENCY BIAS. prior week's data DOES NOT DETERMINE pressure mechanics.
+ *    historical data only exists to highlight pre-existing key levels.
+ *    WHERE THEY ARE. not WHAT they are, WHERE they are. ... THAT IS IT.
+ *    THEY SERVE NO OTHER PURPOSE. DO NOT ever use 1 week old candles to
+ *    make decision on E1/E2/E3 mechanics to today's trades. EVER. That is
+ *    all based on RECENT CANDLES within the last 2-3 trading days, and the
+ *    fundamental underlying E1 ZONE PRESSURE MECHANICS + E2 shape chain
+ *    mechanics."
+ *   "Whatever voting system you are using needs to be scoped to within 3
+ *    trading days up to the present moment & E1 zone pressure mechanics +
+ *    E2 Shape chain mechanics being the primary influences."
+ * BECAUSE: the 6-week lookback EXISTS ONLY to locate the PRE-EXISTING key
+ * levels (the WHERE — the swing-point clustering + the confirmation gate
+ * stay on the FULL lookback); the side vote's WHAT (the pressure mechanics)
+ * must NEVER be decided by 1-week-old candles. The measured derailment:
+ * the #2 pocket's SELL vote included the 06-29→07-01 PRE-formation chop
+ * (the virgin/baby problem — the level before the demand formed ≠ the
+ * level after) + the future bars — the window excludes both.
+ * 72 HOURS = 3 trading days on the FX 1H lane (the operator's recency
+ * window; the temporal gate already bars the forward data — this constant
+ * adds the recency scope on top).
+ */
+const VOTE_WINDOW_HOURS = 72;
 
 /**
  * ATR period = 14.
@@ -491,6 +536,16 @@ export function buildLmvTable(input: LmvInput): LmvResult {
   const ctx: TouchContext = { atr, pipValue };
   const eps = CLUSTER_TOLERANCE_PIPS * pipValue;
 
+  // ── THE SIDE-VOTE WINDOW (the operator's recency law — VOTE_WINDOW_HOURS):
+  //    the vote's "present moment" = the locked run anchor when the temporal
+  //    gate is armed (the day-by-day discipline), else the final bar's
+  //    timestamp (the legacy path). The window NEVER reaches past the present
+  //    — the forward data is already barred by the gate; the window adds the
+  //    recency scope. The WHERE (swing clustering + confirmation) stays on
+  //    the FULL lookback; only the WHAT (the side vote) becomes window-scoped. ──
+  const presentMs = isRunAnchorLocked() ? getRunAnchorMs() : bars[bars.length - 1]!.timestamp;
+  const windowStartMs = presentMs - VOTE_WINDOW_HOURS * 3600 * 1000;
+
   // ── Stage 2: swing-point clustering (the v4.4 validated core, cited) ──
   const points = extractSwingPoints(bars, pipValue);
   const clusters = clusterSwingPoints(points, pipValue);
@@ -531,6 +586,9 @@ export function buildLmvTable(input: LmvInput): LmvResult {
       kind: Exclude<TouchKind, 'PASS_THROUGH'>;
       fromAbove: boolean;
       fromBelow: boolean;
+      /** the reference close (the previous bar's close — the approach anchor
+       *  the W4 candle-pressure lexicon reads for its own approachOf). */
+      refClose: number;
     }
     const reactions: RawReaction[] = [];
     for (let i = 0; i < bars.length; i++) {
@@ -543,6 +601,7 @@ export function buildLmvTable(input: LmvInput): LmvResult {
         kind,
         fromAbove: refClose >= hi,
         fromBelow: refClose <= lo,
+        refClose,
       });
     }
 
@@ -556,29 +615,108 @@ export function buildLmvTable(input: LmvInput): LmvResult {
     }
 
     // ── The DEFENDING side (§2.4 semantics — demand vs supply, NOT the
-    //    v4.4 spot-relative liquidity-resting side): a candle that
-    //    approached the band from ABOVE probed the lows and was turned →
-    //    buyers defended → BUY_SIDE vote; from BELOW → sellers defended →
-    //    SELL_SIDE vote. A candle that was already INSIDE the band (the
-    //    dwell case — refClose within [lo, hi]) votes by wick dominance
-    //    (the side that did the work); an exact wick tie votes by which
-    //    side of the center it closed. Majority wins; ties break on total
-    //    wick mass, then spot-relative (§5.3: supply above / demand
-    //    below). Every branch is deterministic. ──
+    //    v4.4 spot-relative liquidity-resting side), scoped by THE RECENCY
+    //    LAW (VOTE_WINDOW_HOURS): THE SWEPT-SIDE LAW (Bible 4.0 §4.16 — the
+    //    side is the SWEPT side, NEVER the approach). The vote's primary is
+    //    the candle-pressure lexicon's candleSideVote (the WICK_REJECT's
+    //    anatomy — an upper wick = buy stops swept above = the supply side /
+    //    a lower wick = sell stops swept below = the demand side), then the
+    //    swept branches: the SWEEP's own direction (an upward sweep
+    //    r.bar.high > hi = the sell-side liquidity above consumed → SELL; a
+    //    downward r.bar.low < lo = the buy-side liquidity below consumed →
+    //    BUY); then the wick dominance (the side that did the work — the
+    //    dwell case); then the body close-vs-center (a body closed back above
+    //    the modal level = supply-held → SELL). The approach
+    //    (fromAbove/fromBelow) is the TIE-BREAK ONLY, never the primary.
+    //    Majority wins; ties break on total wick mass, then spot-relative
+    //    (§5.3: supply above / demand below). Every branch is deterministic.
+    //    ONLY the reactions within the last VOTE_WINDOW_HOURS up to the
+    //    present vote — the 06-29→07-01 pre-formation chop + the future bars
+    //    are MECHANICALLY EXCLUDED (the pre-formation level ≠ the post-
+    //    formation level — the virgin/baby problem). A cluster untouched in
+    //    the window (zero window reactions) keeps the spot-relative tie-break
+    //    (the final else) — the WHERE stays, never a fabricated vote; the
+    //    structural resting-side pass (resting-side.ts) then overrides the
+    //    contained rungs' types by containment. ──
     let buyVotes = 0;
     let sellVotes = 0;
     let lowerWickMass = 0;
     let upperWickMass = 0;
+    // ── W4 — THE CANDLE-PRESSURE LEXICON (the semantic intent layer) ──
+    // The lexicon decodes each reaction candle's battle semantics
+    // (defend/reject/sweep/dwell/pass — the operator's "pressure mechanics =
+    // semantic intent"). The reject family's side-vote mapping (the WICK_REJECT
+    // fromAbove → BUY_SIDE — the buyers defended the lows / fromBelow →
+    // SELL_SIDE — the sellers defended the highs) FEEDS the side vote: a
+    // WICK_REJECT candle's side is the lexicon's determination (which agrees
+    // with the canon approach vote); every other reaction falls through to the
+    // canon branches — byte-identical to the pre-W4 lanes. Phase A: a reaction
+    // candle the lexicon classifies PASS_THROUGH would be the piecewise-TOTAL
+    // violation (never fires — the canon reaction gate excludes PASS_THROUGH;
+    // the enforce is the contract guard). Phase B: the touch-kind demand
+    // appended to the LMV table's row (the audit trail).
+    const lexiconDemands: string[] = [];
+    let phaseAViolations = 0; // the D2 escalation: a Phase-A violation WARNs +
+                              // the loop continues; the THROW ONLY at the
+                              // escalationThreshold (3) — never a first-hit kill
     for (const r of reactions) {
+      if (r.bar.timestamp < windowStartMs) continue; // the recency law
       const an = barAnatomy(r.bar);
       lowerWickMass += an.lowerWick;
       upperWickMass += an.upperWick;
-      if (r.fromAbove && !r.fromBelow) buyVotes++;
-      else if (r.fromBelow && !r.fromAbove) sellVotes++;
-      else if (an.lowerWick > an.upperWick) buyVotes++;
-      else if (an.upperWick > an.lowerWick) sellVotes++;
-      else if (r.bar.close >= center) buyVotes++;
-      else sellVotes++;
+      const lexInput = {
+        open: r.bar.open,
+        high: r.bar.high,
+        low: r.bar.low,
+        close: r.bar.close,
+        timestamp: r.bar.timestamp,
+        lo,
+        hi,
+        atr: ctx.atr,
+        pipValue: ctx.pipValue,
+        refClose: r.refClose,
+        // the CANONICAL touch kind — the LMV's own classifyTouch output (the
+        // piecewise-TOTAL predicate). The lexicon's intent IS this kind by
+        // construction — the W4 exhaustiveness contract.
+        touchKind: r.kind,
+      };
+      const lexResult = candlePressureLexicon.classify(lexInput);
+      try {
+        candlePressureLexicon.enforce(lexResult, 'A'); // the piecewise-TOTAL guard
+      } catch (e) {
+        // the D2 law: a violation WARNs + the loop continues; the hard THROW
+        // only at the escalationThreshold (3) — a single classification
+        // disagreement must never kill the model build (the operator: "these
+        // cannot hard kill the fucking agent... a warn that continues the loop")
+        phaseAViolations++;
+        lexiconDemands.push(`${r.bar.timestamp}:PHASE-A-WARN:${(e as Error).message}`);
+        if (phaseAViolations >= candlePressureLexicon.escalationThreshold) throw e;
+      }
+      candlePressureLexicon.enforce(lexResult, 'B'); // the touch-kind demand
+      if (lexResult.demand) lexiconDemands.push(`${r.bar.timestamp}:${lexResult.demand}`);
+      // the lexicon's reject-family side vote — the WICK_REJECT determination
+      // (the SEMANTIC input to the side vote; THE SWEPT-SIDE LAW — an upper
+      // wick = buy stops swept above = the supply side / a lower wick = sell
+      // stops swept below = the demand side — never the approach)
+      const lexVote = candleSideVote(lexInput);
+      if (lexVote === 'BUY_SIDE') buyVotes++;
+      else if (lexVote === 'SELL_SIDE') sellVotes++;
+      else if (r.kind === 'SWEEP') {
+        // the SWEEP branch already resolves the correct side (an upward sweep
+        // r.bar.high > hi = the sell-side liquidity above consumed → SELL; a
+        // downward r.bar.low < lo = the buy-side liquidity below consumed →
+        // BUY) — the explicit first branch
+        if (r.bar.high > hi) sellVotes++; else buyVotes++;
+      } else if (an.upperWick > an.lowerWick) {
+        sellVotes++;              // buy stops swept ABOVE → the supply side
+      } else if (an.lowerWick > an.upperWick) {
+        buyVotes++;               // sell stops swept BELOW → the demand side
+      } else if (r.bar.close >= center) {
+        sellVotes++;              // a body closed back above the modal level = supply-held
+      } else {
+        buyVotes++;
+      }
+      // the approach (fromAbove/fromBelow) becomes the tie-break ONLY, never the primary
     }
     const side: 'BUY_SIDE' | 'SELL_SIDE' =
       buyVotes > sellVotes
@@ -694,6 +832,9 @@ export function buildLmvTable(input: LmvInput): LmvResult {
         weekSpan: weeks.size,
         zfp: rungZfp,
         timeframe: tf,
+        // W4 — the candle-pressure lexicon's touch-kind demands (the audit
+        // trail; absent when no window reactions produced a demand).
+        ...(lexiconDemands.length > 0 ? { semanticReads: [...lexiconDemands] } : {}),
       });
     }
   }

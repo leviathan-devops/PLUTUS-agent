@@ -34,6 +34,39 @@ import {
   type DXYZone,
 } from '../types.js';
 import { Logger } from '../utils/logger.js';
+// Wave 3 (2026-08-06) — THE DAY-LEVEL TEMPORAL CONSTRAINT. The temporal
+// engine (Wave 1) is the run-anchor gate; the shape-brain's day-designation
+// consumes it: the dayLimit = min(day's end, the run anchor) — the belt+
+// suspenders on the bar gate. isRunAnchorLocked() guards the getRunAnchorMs()
+// fail-fast — the legacy unlocked runs never read it.
+import { isRunAnchorLocked, getRunAnchorMs } from '../mdve/temporal.js';
+// W5 (2026-08-07) — THE PHANTOM-BoM EXEMPTION (the operator's type-2 virgin
+// MoM = the FORTRESS). The death rule (E2-5) must consult the SAME
+// deterministic all-4 predicate the reasoning chain's findFortressDemand
+// uses — phantomBoMExemption (reasoning-chain.ts:428). The import graph is
+// acyclic (verified: nothing in reasoning-chain's transitive closure imports
+// shape-brain; only prior-week-preflight does, and it is NOT in the chain's
+// closure) and side-effect-free at module load (shadow-agent reads the key
+// inside functions; failure-store opens the DB lazily).
+import type { OperativeZone } from '../mdve/reasoning-chain.js';
+// W4 — THE LEXICONS (the semantic intent layer, the operator's "pressure
+// mechanics = semantic intent"). The zone-classification lexicon's PHANTOM_BOM
+// intent feeds the E2 death-rule exemption (shape-brain.ts:1150) — the SAME
+// deterministic all-4 predicate, routed through the lexicon machine; the
+// zone-pressure lexicon's lifecycle intent feeds the pressure-aware designation
+// + the SL-relevance switch. The lexicons import only types/util — acyclic.
+import {
+  zoneClassificationLexicon,
+  isPhantomBoM,
+  zonePressureLexicon,
+  pressureScoreOf,
+  candleShapeLexicon,
+  shapeChainLexicon,
+  unifiedMacroShape,
+} from '../mdve/lexicons/index.js';
+import type { LexiconData } from '../mdve/lexicons/index.js';
+import type { ChartModel, ZoneModel } from '../mdve/types.js';
+import { PIP_VALUE } from '../types.js';
 import { classifyShapeDensity } from './elemental-lobe.js';
 import {
   SHAPE_BRAIN_TICK_MS,
@@ -960,10 +993,230 @@ function inferDirection(zones: readonly DXYZone[], spot: number): string {
 // Bridges Engine 1 zone classification with Engine 2 shape prediction.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// W5 — THE PHANTOM-BoM EXEMPTION (the type-2 virgin MoM = the FORTRESS)
+// (the operator, verbatim — PLUTUS_V4.5.4_LEXICON_SPEC Lexicon 3 + the L2 spec
+//  PART 3.3 / PART 11.5-11.7):
+//   "a phantom BoM zone... a MoM-disguised BoM... functions as a BoM zone"
+//   "clearly breaks (temporarily for only a couple of candles) the actual swing
+//    move structure and is clearly a 'fake RWL' type or 'correction' fakeout
+//    candle"
+//   "there is an UM 1H BoM supply zone... that this correction instantly reacts
+//    to before forming the big OB"
+//   "the move actually CONTINUES FORWARD VIOLENTLY and completes the full swing
+//    from the macro origin element"
+//   "the 'virgin MoM zones = death' applies largely to 30m virgin MoM zones and
+//    1H type 1 virgin MoMs" + "ALL 4H zones WILL have at least 1 reaction before
+//    mitigation" (the virgin-death-scope law — the 4H zones are NEVER death zones)
+//   "the OB's size is inherently a function of the move it precedes" (the SMC
+//    ratio-based width — NEVER a fixed pip number)
+// The exemption consults the SAME deterministic all-4 predicate the reasoning
+// chain's findFortressDemand uses (phantomBoMExemption — reasoning-chain.ts:428)
+// — zero drift by construction: the E2-side designation cannot kill the fortress
+// the chain exempts. The adapter is an honest field mapping (the DXYZone's real
+// data + the deterministic zone id contract `${pair}|${tf}|${obTimestamp}|${floor}`
+// — types.ts:132); the model view carries ONLY the zones the predicate reads
+// (phantomBoMExemption provably touches model.zones only — reasoning-chain.ts:
+//  453/469). Absent data → the predicate's conservative fallbacks (the type-1
+//  STAYS a death zone — a 3-of-4 is NOT exempted).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** The zone's timeframe from the deterministic id contract (types.ts:132). */
+function zoneTimeframeFromId(id: string): string | undefined {
+  // `${pair}|${tf}|${obTimestamp}|${floor}` — segment 1 is the tf. The LMV
+  // rung ids (`LMV|pair|center`) carry NO tf segment → undefined → the
+  // predicate's isLtf gate fails conservatively (the rungs are never the
+  // phantom — they are MoM by construction, bom-mom.ts:118).
+  const seg = id.split('|');
+  if (seg.length < 4) return undefined;
+  const tf = seg[1];
+  return tf === '4H' || tf === '1H' || tf === '30m' || tf === '15m' ? tf : undefined;
+}
+
+/** The DXYZone → OperativeZone adapter (the E2-side data, honestly mapped). */
+function dxyZoneToOperative(z: DXYZone): OperativeZone {
+  const isDemand = z.type === ZoneType.MOM_DEMAND || z.type === ZoneType.BOM_DEMAND
+    || z.type === ZoneType.LSZ_DEMAND || z.type === ZoneType.IP_DEMAND;
+  const isBom = z.isBoM || z.type === ZoneType.BOM_SUPPLY || z.type === ZoneType.BOM_DEMAND;
+  return {
+    id: z.id,
+    type: isDemand ? 'DEMAND' : 'SUPPLY',
+    floor: z.floor,
+    ceiling: z.ceiling,
+    classification: isBom ? 'BoM' : 'MoM',
+    timeframe: zoneTimeframeFromId(z.id),
+    zfp: z.zfp,
+    confluence: z.confluence ?? 0,
+    reactionCount: z.reactionCount,
+    formationMs: z.formationMs ?? z.createdAt,
+    // The predicate reads ONLY zone.pressure?.mitigationCount (reasoning-chain.ts:441)
+    // — the mitigation-count field, present verbatim on the E2-side pressure. The
+    // liquidity sub-shape differs (zoneId vs rungId) — never read by the predicate
+    // → typed cast of the REAL DXYZone pressure object (no fabricated data).
+    pressure: z.pressure as unknown as OperativeZone['pressure'],
+    freshness: z.reactionStatus === 'virgin' ? 'FRESH'
+      : z.reactionStatus === 'depleted' ? 'DEPLETED' : 'TESTED_1X',
+  };
+}
+
+/** W4 — the DXYZone → zone-pressure-LEXICON adapter (the E2-side lifecycle
+ *  data, honestly mapped — the SAME fields the pressure-state machinery reads).
+ *  The designation's pressureScore consumes it (the ZR7-spec:991-992 weight). */
+function zoneToLexiconPressure(z: DXYZone): LexiconData {
+  const isDemand = z.type === ZoneType.MOM_DEMAND || z.type === ZoneType.BOM_DEMAND
+    || z.type === ZoneType.LSZ_DEMAND || z.type === ZoneType.IP_DEMAND;
+  const isBom = z.isBoM || z.type === ZoneType.BOM_SUPPLY || z.type === ZoneType.BOM_DEMAND;
+  return {
+    zoneType: isDemand ? 'DEMAND' : 'SUPPLY',
+    zoneClassification: isBom ? 'BoM' : 'MoM',
+    zoneTimeframe: (zoneTimeframeFromId(z.id) as LexiconData['zoneTimeframe']) ?? '1H',
+    zoneZfp: z.zfp,
+    reactionCount: z.reactionCount,
+    mitigationCount: z.pressure?.mitigationCount ?? z.reactionCount,
+    reactionEvents: z.pressure?.mitigationCount != null
+      ? Array.from({ length: z.pressure.mitigationCount }, () => ({ pierced: z.pressure?.pierced ?? false }))
+      : (z.reactionCount > 0 ? Array.from({ length: z.reactionCount }, () => ({ pierced: z.pressure?.pierced ?? false })) : []),
+    freshness: z.reactionStatus === 'virgin' ? 'FRESH'
+      : z.reactionStatus === 'depleted' ? 'DEPLETED'
+      : (z.reactionCount === 0 ? 'FRESH' : z.reactionCount >= 3 ? 'DEPLETED' : 'TESTED_1X'),
+    pierced: z.pressure?.pierced ?? false,
+    strongHoldCount: z.reactionCount,
+    absorption: z.pressure?.absorption,
+  };
+}
+
+/** The DXYZone → ZoneModel adapter (the predicate's model.zones view). */
+function dxyZoneToZoneModel(z: DXYZone): ZoneModel {
+  const isDemand = z.type === ZoneType.MOM_DEMAND || z.type === ZoneType.BOM_DEMAND
+    || z.type === ZoneType.LSZ_DEMAND || z.type === ZoneType.IP_DEMAND;
+  const isBom = z.isBoM || z.type === ZoneType.BOM_SUPPLY || z.type === ZoneType.BOM_DEMAND;
+  return {
+    id: z.id,
+    type: isDemand ? 'DEMAND' : 'SUPPLY',
+    top: z.ceiling,
+    bottom: z.floor,
+    timeframe: (zoneTimeframeFromId(z.id) ?? '1H') as ZoneModel['timeframe'],
+    classification: isBom ? 'BoM' : 'MoM',
+    formationMs: z.formationMs ?? z.createdAt ?? 0,
+    freshness: z.reactionStatus === 'virgin' ? 'FRESH'
+      : z.reactionStatus === 'depleted' ? 'DEPLETED' : 'TESTED_1X',
+    // The predicate reads the opposing zone's type/classification/formationMs/
+    // bottom/top (reasoning-chain.ts:453-460) + the macro-origin's timeframe/
+    // type/bottom/top (:469-471) — NEVER reactionEvents. The E2-side event
+    // shape is the lastTouchMs/dir subset — typed cast (real touch data).
+    reactionEvents: z.reactionEvents as unknown as ZoneModel['reactionEvents'],
+    zfp: z.zfp,
+    confluence: z.confluence ?? 0,
+  };
+}
+
+/** The E2-side ATR proxy (the SMC ratio anchor — NEVER a fixed pip number):
+ *  4 × the narrowest positive zone width / pip — the SAME formula the chain's
+ *  proxyAtr1hPips uses (mirror.ts:367), computed from the map's own structures. */
+function shapeBrainAtrProxyPips(zones: readonly DXYZone[], pip: number): number {
+  // THE C-1 FIX (2026-08-11 — Machine C, second layer): the travel magnitude
+  // MUST be the map's TYPICAL zone width — the MEDIAN of the positive widths —
+  // never the MINIMUM. The min-width statistic is degenerate: every pool
+  // carries 0.1-pip slivers (and zero-width LMV line zones), so proxy = 4 ×
+  // 0.1 = 0.4 pips → travelMid 0.4p → the day band sub-pip → the inBand
+  // search finds NOTHING → the E2 ids null at the source → the fallbacks slop.
+  // The median (3.0-3.7 pips measured at ANALYSIS_POINT 1783317600000) is the
+  // robust central tendency — one sliver never collapses the whole band. The
+  // SMC ratio doctrine stands: "the OB's size is inherently a function of the
+  // move it precedes — NEVER a fixed pip number" — the median of the ACTUAL
+  // map is the market condition.
+  const widths: number[] = [];
+  for (const z of zones) {
+    const w = z.ceiling - z.floor;
+    if (w > 0 && isFinite(w)) widths.push(w);
+  }
+  if (widths.length === 0) return 0;
+  widths.sort((a, b) => a - b);
+  const median = widths.length % 2 === 1
+    ? widths[Math.floor(widths.length / 2)]!
+    : (widths[widths.length / 2 - 1]! + widths[widths.length / 2]!) / 2;
+  return (4 * median) / pip;
+}
+
+/** THE DATA-DERIVED TRAVEL (§2.3 STAGE 1 — the W3 wave, 2026-08-10 — the
+ *  C-1 fix): the day's travel = the map's actual structure, scaled by the ATR
+ *  proxy (shapeBrainAtrProxyPips) — NEVER the fixed SHAPE_TRAVEL ladder. The
+ *  SMC ratio doctrine: "the OB's size is inherently a function of the move it
+ *  precedes — NEVER a fixed pip number". SHAPE_TRAVEL is retained ONLY as the
+ *  last-resort fallback when the map yields no width (proxy = 0). */
+function dataDerivedTravel(pool: readonly DXYZone[], pipSize: number): { min: number; mid: number; max: number; nearEdge: number } {
+  const atrProxyPips = shapeBrainAtrProxyPips(pool, pipSize);
+  if (atrProxyPips <= 0) return { min: 0, mid: 0, max: 0, nearEdge: 0 }; // the fallback signal — the caller uses SHAPE_TRAVEL
+  return {
+    min: 0.5 * atrProxyPips,
+    mid: 1.0 * atrProxyPips,
+    max: 1.5 * atrProxyPips,
+    nearEdge: 0.25 * atrProxyPips,   // the edge-distance band for the §2.3 STAGE 5 nesting
+  };
+}
+
+/**
+ * THE W5 EXEMPTION LANE — consult the SAME deterministic all-4 predicate the
+ * reasoning chain's findFortressDemand uses, NOW ROUTED THROUGH THE
+ * ZONE-CLASSIFICATION LEXICON (W4 — the semantic intent layer: the operator's
+ * "pressure mechanics = semantic intent"). The type-2 virgin MoM (the
+ * phantom-BoM fortress) is EXEMPTED from the virgin-MoM death rule; the type-1
+ * (the small OB + the uninterrupted mid-move → the all-4 fails) STAYS a death
+ * zone (the conservative default — a 3-of-4 is NOT exempted). The lexicon's
+ * PHANTOM_BOM intent IS the exemption decision — the E2 designation never
+ * kills the fortress upstream.
+ */
+function isPhantomBoMFortress(
+  zone: DXYZone,
+  allZones: readonly DXYZone[],
+  pip: number,
+): boolean {
+  const operative = dxyZoneToOperative(zone);
+  const modelZones = allZones.map(dxyZoneToZoneModel);
+  const atr = shapeBrainAtrProxyPips(allZones, pip);
+  // The mid-swing position — the zone's vertical position within the model's
+  // observed range (0 at the range floor, 1 at the ceiling). DATA-DERIVED,
+  // never a hardcoded level: the macro-origin continuation (a same-type 4H
+  // structure below) guarantees the exempted demand's position is interior
+  // (ratio ∈ (0, 1)) — the mid-swing-recovery + the fakeout predicate's
+  // position component. The honest absence (a degenerate flat range) → the
+  // position is UNKNOWN → the predicate conservatively fails (a DEATH-zone
+  // default — the all-4 cannot be confirmed).
+  const rangeLow = allZones.length > 0 ? Math.min(...allZones.map((z) => z.floor)) : Infinity;
+  const rangeHigh = allZones.length > 0 ? Math.max(...allZones.map((z) => z.ceiling)) : -Infinity;
+  const midSwingPosition =
+    rangeHigh > rangeLow && isFinite(rangeLow) && isFinite(rangeHigh)
+      ? (zone.ceiling - rangeLow) / (rangeHigh - rangeLow)
+      : undefined;
+  const lexInput: LexiconData = {
+    zoneId: zone.id,
+    zoneType: operative.type,
+    zoneFloor: operative.floor,
+    zoneCeiling: operative.ceiling,
+    zoneTimeframe: operative.timeframe as LexiconData['zoneTimeframe'],
+    zoneClassification: operative.classification,
+    zoneFormationMs: operative.formationMs,
+    zoneZfp: operative.zfp,
+    zoneConfluence: operative.confluence,
+    reactionCount: operative.reactionCount,
+    freshness: operative.freshness as LexiconData['freshness'],
+    midSwingPosition,
+    pipValue: pip,
+    atrPips: atr,
+    // the model's zone list — the pre-formation opposing-BoM reaction + the
+    // macro-origin continuation scan (the model.zones equivalent)
+    zones: modelZones.map((z) => ({
+      type: z.type, classification: z.classification,
+      formationMs: z.formationMs, top: z.top, bottom: z.bottom, timeframe: z.timeframe,
+    })),
+  };
+  return isPhantomBoM(lexInput);
+}
+
 /** E2-4: Result type for the MoM zone mechanics decision tree. */
 interface ZoneMechanicsDecision {
   branch: 1 | 2 | 3 | 4;
-  action: 'LADDER_STEP' | 'CONTINUATION_RETEST' | 'TP_TARGET_ONLY' | 'REJECT';
+  action: 'LADDER_STEP' | 'CONTINUATION_RETEST' | 'TP_TARGET_ONLY' | 'REJECT' | 'EXEMPT';
   nextShape: ShapeCode;
   rationale: string;
 }
@@ -990,13 +1243,31 @@ interface ZoneMechanicsDecision {
  *     → E2-5: Virgin MoM = automatic reject, no exceptions
  *     → Next shape: PBS (zone will be pierced)
  */
-function evaluateMoMZoneMechanics(zone: DXYZone): ZoneMechanicsDecision {
+function evaluateMoMZoneMechanics(
+  zone: DXYZone,
+  allZones: readonly DXYZone[],
+  pip: number,
+): ZoneMechanicsDecision {
   const isMoM = zone.type === ZoneType.MOM_SUPPLY || zone.type === ZoneType.MOM_DEMAND;
 
-  // E2-5: Virgin MoM = DEATH ZONE → always reject
+  // E2-5: Virgin MoM = DEATH ZONE → reject UNLESS the W5 phantom-BoM exemption
+  // fires (the type-2 virgin MoM = the FORTRESS — the operator: "a phantom BoM
+  // zone... a MoM-disguised BoM... functions as a BoM zone"). The exemption is
+  // the SAME deterministic all-4 predicate the reasoning chain's
+  // findFortressDemand consults (phantomBoMExemption) — the E2-side designation
+  // never kills the fortress upstream. The type-1 (the all-4 fails) STAYS a
+  // death zone — a 3-of-4 is NOT exempted (the conservative default).
   const isVirgin = zone.reactionCount === 0
     || zone.reactionStatus === 'virgin';
   if (isMoM && isVirgin) {
+    if (isPhantomBoMFortress(zone, allZones, pip)) {
+      return {
+        branch: 4,
+        action: 'EXEMPT',
+        nextShape: ShapeCode.PBS,
+        rationale: 'E2-5/W5: PHANTOM-BoM EXEMPTION — the type-2 virgin MoM = the FORTRESS (the all-4 predicate holds: the large-OB + the mid-swing fakeout + the pre-formation opposing-BoM reaction + the macro-origin continuation). Not a death zone — the E2 designation holds.',
+      };
+    }
     return {
       branch: 4,
       action: 'REJECT',
@@ -1048,21 +1319,28 @@ function evaluateMoMZoneMechanics(zone: DXYZone): ZoneMechanicsDecision {
  * E2-4: Apply the MoM decision tree to all MoM zones in the map.
  * Returns a summary of zone mechanics decisions for the shape prediction context.
  */
-function evaluateAllMoMZones(zones: readonly DXYZone[]): {
+function evaluateAllMoMZones(zones: readonly DXYZone[], pip: number): {
   decisions: Array<{ zoneId: string; decision: ZoneMechanicsDecision }>;
   deathZones: string[];
+  fortressZones: string[];
 } {
   const momZones = zones.filter((z: DXYZone) =>
     z.type === ZoneType.MOM_SUPPLY || z.type === ZoneType.MOM_DEMAND,
   );
   const decisions = momZones.map((z: DXYZone) => ({
     zoneId: z.id,
-    decision: evaluateMoMZoneMechanics(z),
+    decision: evaluateMoMZoneMechanics(z, zones, pip),
   }));
   const deathZones = decisions
-    .filter((d) => d.decision.branch === 4)
+    .filter((d) => d.decision.branch === 4 && d.decision.action === 'REJECT')
     .map((d) => d.zoneId);
-  return { decisions, deathZones };
+  // W5 — the exempted fortress (the type-2 virgin MoM) — surfaced so the E2
+  // designation + the E3 consumers see it as a VALID reaction point, never a
+  // death zone.
+  const fortressZones = decisions
+    .filter((d) => d.decision.branch === 4 && d.decision.action === 'EXEMPT')
+    .map((d) => d.zoneId);
+  return { decisions, deathZones, fortressZones };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1174,20 +1452,74 @@ const SHAPE_TRAVEL: Record<string, { min: number; mid: number; max: number }> = 
 };
 
 /**
+ * §2.4 — THE RECOVERY DIRECTION (the R-day semantics — the C-5 kill). The
+ * operator's recovery: "the recovery RISES back toward the pre-breakout level —
+ * the supply above is the recovery's TARGET, the demand below is the entry
+ * fuel." The direction = the nearer bound with the stronger E1 pressure:
+ *   no supply above → UP (nothing overhead); no demand below → DOWN;
+ *   else the pressure comparison decides (the stronger-pressure side wins).
+ * The MACRO AUTHORITY (the cascade direction — report-v452's applyDivergence,
+ * the G3 contract) overrides this when the pair diverges > 0.35 — the GU
+ * Monday = LONG via the kept EU cascade.
+ */
+function recoveryDirection(zones: readonly DXYZone[], spot: number): 'UP' | 'DOWN' {
+  const supplyAbove = zones.filter((z: DXYZone) => isSupplyZone(z) && z.floor > spot)
+    .sort((a: DXYZone, b: DXYZone) => a.floor - b.floor)[0];
+  const demandBelow = zones.filter((z: DXYZone) => isDemandZone(z) && z.ceiling < spot)
+    .sort((a: DXYZone, b: DXYZone) => b.ceiling - a.ceiling)[0];
+  if (!supplyAbove) return 'UP';
+  if (!demandBelow) return 'DOWN';
+  return pressureScoreOf(zoneToLexiconPressure(supplyAbove))
+    >= pressureScoreOf(zoneToLexiconPressure(demandBelow)) ? 'UP' : 'DOWN';
+}
+
+/**
  * Map the day decomposition's direction vocabulary ('UP'|'DOWN'|'RANGE'|'NEUTRAL')
  * to the E1 entry-rung direction. 'UP' (price rises) → LONG days (demand below as
- * the rung); 'DOWN' (price falls) → SHORT days (supply above); 'RANGE'/'NEUTRAL'
- * → RANGE (both boundaries carried, strongest bounding zone designated).
+ * the rung); 'DOWN' (price falls) → SHORT days (supply above); 'RANGE' → RANGE
+ * (both boundaries carried, strongest bounding zone designated). 'NEUTRAL'
+ * resolves via the §2.4 pressure evidence — the E1 pressure decides the side
+ * (the ZR-6D "the label must match the side") — NEVER the old NEUTRAL→RANGE
+ * collapse (the C-5 kill: the R→NEUTRAL→RANGE→supply-primary flattening).
  */
-function toEntryDirection(direction: string): 'LONG' | 'SHORT' | 'RANGE' {
+function toEntryDirection(
+  direction: string,
+  zones: readonly DXYZone[],
+  spot: number,
+): 'LONG' | 'SHORT' | 'RANGE' {
   if (direction === 'UP') return 'LONG';
   if (direction === 'DOWN') return 'SHORT';
-  return 'RANGE';
+  if (direction === 'RANGE') return 'RANGE';
+  // NEUTRAL — the §2.4 pressure-evidence resolution (never the RANGE collapse):
+  // the designation emits the side the E1 pressure supports (the demand below =
+  // the LONG entry fuel on a recovery day; the supply above = the SHORT fuel).
+  const supplyAbove = zones.filter((z: DXYZone) => isSupplyZone(z) && z.floor > spot)
+    .sort((a: DXYZone, b: DXYZone) => a.floor - b.floor)[0];
+  const demandBelow = zones.filter((z: DXYZone) => isDemandZone(z) && z.ceiling < spot)
+    .sort((a: DXYZone, b: DXYZone) => b.ceiling - a.ceiling)[0];
+  if (!supplyAbove && !demandBelow) return 'RANGE';
+  if (!demandBelow) return 'SHORT';
+  if (!supplyAbove) return 'LONG';
+  return pressureScoreOf(zoneToLexiconPressure(supplyAbove))
+    >= pressureScoreOf(zoneToLexiconPressure(demandBelow)) ? 'SHORT' : 'LONG';
 }
 
 /** Compute the center of a zone (midpoint of floor and ceiling). */
 function zoneCenter(z: DXYZone): number {
   return (z.floor + z.ceiling) / 2;
+}
+
+/**
+ * Wave 3 (2026-08-06) — the UTC Monday 00:00 of the run anchor's week (the
+ * locked-run week-start fallback when no storyline is present). The run anchor
+ * is "today at London open" (07:00 UTC); its UTC date's weekday index maps to
+ * the Monday 00:00 that begins its week. getUTCDay(): 0=Sun..6=Sat → the
+ * Monday offset = (getUTCDay() + 6) % 7 (Mon=0, Sun=6).
+ */
+function mondayUtcOf(anchorMs: number): number {
+  const d = new Date(anchorMs);
+  const mondayOffset = (d.getUTCDay() + 6) % 7;
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - mondayOffset * 86400000;
 }
 
 /**
@@ -1273,22 +1605,45 @@ function projectZoneForDay(
   // no candidate (the honest absence — never a forced pick).
   priorDayProjection?: { projectedTpZoneId?: string; projectedTp?: number } | null,
 ): ShapeDayZone {
-  const travel = SHAPE_TRAVEL[shape] ?? SHAPE_TRAVEL['default']!;
   // pipSize from the spot magnitude — mirror.ts convention (DXY > 50 → 0.01, FX → 0.0001).
   const pipSize = priorDayClose > 50 ? 0.01 : 0.0001;
+  // THE DATA-DERIVED TRAVEL (§2.3 STAGE 1 — the W3 wave, 2026-08-10): the
+  // day's band = the map's actual structure scaled by the ATR proxy — NEVER
+  // the fixed SHAPE_TRAVEL ladder (the C-1 fix: the DXY Monday's reach was
+  // open + 30p = 101.369 — a fantasy extreme the 101.30 rung ladder "won"
+  // by proximity). SHAPE_TRAVEL survives ONLY as the last-resort fallback
+  // when the map yields no width (dataDerivedTravel returns zeros).
+  const derivedTravel = dataDerivedTravel([...zones, ...(ltfZones ?? [])], pipSize);
+  const travel = derivedTravel.max > 0
+    ? derivedTravel
+    : (SHAPE_TRAVEL[shape] ?? SHAPE_TRAVEL['default']!);
   const travelMid = travel.mid * pipSize;
   const travelMax = travel.max * pipSize;
 
   // ── 1. DayBand forward projection — the day's predicted London-open spot ──
-  // (2026-07-31 FIX): the London open ≈ the prior day's close (FX opens gap-less-ish).
-  // A full directional drift (priorDayClose ± travelMid) made the chain PROJECT
-  // DOWNWARD every SHORT day → by Wed the projected spot sat ~2 DXY points below the
-  // actual structure → the E2 designation picked the wrong supply (99.084 instead of
-  // the golden 101.235-101.240). The TRAVEL defines the day's RANGE [open ± travelMax];
-  // the open itself stays anchored to the prior close (deterministic, no drift, no
-  // future leak). The directional extreme of the range is the sweep target the E2
-  // designation aims at (fix 2 below).
-  const dayOpenSpot = priorDayClose;
+  // THE C-1 FIX (2026-08-11 — Machine C): the design contract (:1539-1540) —
+  // "Monday → dayOpenSpot = f(Friday close + shape travel); Tue-Fri → dayOpenSpot
+  // = f(prior day's PREDICTED London-open spot + shape travel)". The 2026-07-31
+  // anchoring (open = prior close, zero drift) created THE E2-NULL: every day's
+  // band = [close ± travelMax] — identical Mon-Fri → the same/no zones qualify →
+  // the EU/GU zone ids null at the source → Machine A's fallback slop + Machine
+  // B's starvation. The 07-31 REJECTION of the drift is honored: a FULL directional
+  // drift chained day-over-day overshot the actual structure (~2 DXY points by Wed
+  // with the fixed SHAPE_TRAVEL ladder). The reconciliation: the forward projection
+  // rides the W3 DATA-DERIVED travel (2026-08-10 — the map's actual mid width,
+  // NEVER the fixed ladder when the map yields width) — the open advances by the
+  // map-realistic travel, the day's RANGE [open ± travelMax] shifts with it, and
+  // the per-day designation becomes possible. THE MONDAY EXCLUSION (2026-08-11 —
+  // the golden gate's evidence): the Monday open = the Friday close EXACTLY (the
+  // 07-31 gap-less anchor — "the ONLY Friday-spot use") — a Monday drift moved the
+  // golden DXY SHORT 101.120 → 100.936 (a 20.4p golden MISS). The drift belongs to
+  // the Tue-Fri carry ONLY. The directional extreme of the range stays the sweep
+  // target the E2 designation aims at (fix 2 below).
+  const isMonday = day === 'Mon';
+  const dayOpenSpot = isMonday
+    ? priorDayClose
+    : priorDayClose +
+      (direction === 'LONG' ? travelMid : direction === 'SHORT' ? -travelMid : 0);
   // The projected day range (Law 2 travel band).
   const floor = dayOpenSpot - travelMax;
   const ceiling = dayOpenSpot + travelMax;
@@ -1371,6 +1726,48 @@ function projectZoneForDay(
   const recencyRank = (z: DXYZone): number =>
     recencyStart != null && recencyEnd != null
       && formationMsOf(z) >= recencyStart && formationMsOf(z) < recencyEnd ? 0 : 1;
+  // ── Wave 3 (2026-08-06) — THE DAY-LEVEL TEMPORAL CONSTRAINT (the operator's
+  //    day-by-day law — VERBATIM: "MONDAY - FULL PIPELINE WITH DATA AVAILABLE
+  //    UP UNTIL MONDAY / TUESDAY - FULL PIPELINE WITH DATA AVAILABLE UP UNTIL
+  //    TUESDAY / WEDNESDAY - ... / ETC"). The day-designation pool (the
+  //    supplyCands/demandCands below) must NEVER include a zone formed AFTER
+  //    the day being designated — the belt+suspenders on the Wave-1 bar gate
+  //    (which already makes post-anchor zones unformable): this ALSO covers the
+  //    multi-day runs where a Tuesday-anchored run designates Monday's zones —
+  //    a zone formed Wednesday cannot be Monday's or Tuesday's designation.
+  //    THE DAY STRING IS 'Mon'..'Fri' (the buildDayDecomposition canonical
+  //    format — verified call site shape-brain.ts:1924 `day.slice(0,3)`), NOT
+  //    'YYYY-MM-DD' — the day's ms window derives from the WEEK START (the
+  //    storyline's priorAnchorMs = the current week's Mon 00:00 — the same
+  //    R1-b/ZR-4C source; the locked run anchor's UTC week when no storyline
+  //    is present) + the day index. dayLimitMs = min(dayEndMs, runAnchorMs) —
+  //    the locked run caps at the anchor (the Monday-locked run: the Monday
+  //    dayLimit = the Monday 07:00 anchor, earlier than the day's end); the
+  //    legacy unlocked runs → the day's end ONLY (a deliberate change — the
+  //    designations become day-honest even without the anchor). No week anchor
+  //    (no storyline, no lock) → dayLimitMs null → the constraint is INERT
+  //    (byte-identical legacy). ──
+  const runAnchorMs = isRunAnchorLocked() ? getRunAnchorMs() : Infinity;
+  const weekStartMs = priorWeekStoryline?.priorAnchorMs
+    ?? (runAnchorMs !== Infinity ? mondayUtcOf(runAnchorMs) : 0);
+  const dayStartMs = weekStartMs > 0 && dayIdxOf >= 0 ? weekStartMs + dayIdxOf * DAY_MS : null;
+  const dayLimitMs = dayStartMs != null ? Math.min(dayStartMs + DAY_MS - 1, runAnchorMs) : null;
+  // ── Wave 3 — THE DAY-LOCAL PREFERENCE (the operator's recency law — VERBATIM:
+  //    "Whatever voting system you are using needs to be scoped to within 3
+  //    trading days up to the present moment" — "RECENT CANDLES within the last
+  //    2-3 trading days"). The strongest()'s window tie-break: a zone formed
+  //    WITHIN the day's 3-day window (formationMs >= dayStartMs − 72h) ranks
+  //    ABOVE an older zone at equal zfp — the day's OWN recent structures win
+  //    over the week's-newest reuse (the GU Mon/Tue/Thu 1.33878 collapse dies).
+  //    The window NEVER excludes (a pre-existing key level outside it stays
+  //    eligible — the WHERE) — it only PREFERENCES at equal zfp. The
+  //    windowStartMs is a pure integer-ms function of the formationMs —
+  //    deterministic (the plan's 1e-9 epsilon is unnecessary for integer ms;
+  //    the >= comparison is exact). ──
+  const DAY_WINDOW_HOURS = 72;
+  const windowStartMs = dayStartMs != null ? dayStartMs - DAY_WINDOW_HOURS * 3600 * 1000 : null;
+  const dayWindowRank = (z: DXYZone): number =>
+    windowStartMs != null && formationMsOf(z) >= windowStartMs ? 1 : 0;
   // SHORT days → SUPPLY ABOVE the predicted spot; LONG days → DEMAND BELOW it.
   // (2026-07-31 FIX): candidates are bounded by the EXPECTED reach (open ± travelMid —
   // the shape's expected move), NOT the max travel. The golden Wed BS SHORT swept to
@@ -1404,12 +1801,98 @@ function projectZoneForDay(
   // ceiling), and the LONG designation's demand reach must not undershoot the
   // day's actual low. When no day band is derivable (no day-formed zones —
   // e.g. a day with zero new structure), the raw reach stands (byte-identical).
+  // THE MAP-DERIVED REACH (§2.3 STAGE 3 — the W3 wave, 2026-08-10 — the C-1
+  // completion): the RANGE-day reach = the day's ACTUAL structures (the
+  // dayReachHigh/dayReachLow or the nearest quality structure beyond the
+  // open), NEVER the travel-band extreme alone. When the travel band (the
+  // data-derived or the fallback) yields NO candidate on a side, the reach
+  // extends to the FIRST quality structure beyond the open — the operator's
+  // Friday supply 1.14460 (24.8p above the EU open) stays reachable even
+  // with the tight ATR-proxy band, and the DXY's 101.14 structure (7.1p)
+  // stays the near-open primary.
   const supplyReachRaw = isStorylineRange ? dayOpenSpot + travelMax
     : (direction === 'LONG' ? oppositeReach : expectedReach);
   const demandReachRaw = isStorylineRange ? dayOpenSpot - travelMax
     : (direction === 'SHORT' ? oppositeReach : expectedReach);
-  const supplyReach = dayReachHigh != null ? Math.min(supplyReachRaw, dayReachHigh) : supplyReachRaw;
-  const demandReach = dayReachLow != null ? Math.max(demandReachRaw, dayReachLow) : demandReachRaw;
+  // THE C-3B REWRITE (2026-08-11 — Machine C, the zone-anchor law — SITE-4):
+  // the reach extension targets the STRONGEST structural supply above the
+  // open (the E1 MPSE: the pressure DESC — the +40 VIRGIN-BoM / +20 FORTRESS
+  // — then the zfp ASC), NEVER the price-nearest. The operator: "NOTHING
+  // SHOULD BE PRICE ANCHORED EVER" — the operator's structural zones (the
+  // BoM 1.14460) stay reachable even when a closer sliver exists. The floor
+  // distance (a.floor - b.floor) is the FINAL tie-break only.
+  const nearestSupplyAbove = (z: readonly DXYZone[]): number | null => {
+    const q = z.filter((x) => isSupplyZone(x) && x.floor > dayOpenSpot)
+      .sort((a, b) =>
+        (pressureScoreOf(zoneToLexiconPressure(b)) - pressureScoreOf(zoneToLexiconPressure(a))) ||
+        ((a.zfp ?? 99) - (b.zfp ?? 99)) ||
+        (a.floor - b.floor))[0];
+    return q ? q.ceiling : null;
+  };
+  // THE C-2 FIX (2026-08-11 — Machine C, the EU SHORT class): the reach
+  // extension MUST target the FIRST QUALITY structure, never the nearest
+  // VIOLATED sliver. The W8B §7 doctrine (:1810-1812 — "the reach extends to
+  // the FIRST quality structure beyond the open — the operator's Friday
+  // supply 1.14460 (24.8p above the EU open) stays reachable even with the
+  // tight ATR-proxy band"). The EU Monday: the nearest supply above the open
+  // was the VIOLATED zfp-70 sliver 1.14245 (ceiling 1.14293) — the reach
+  // stayed 1.14378 — the operator's golden SELL_SIDE rung [1.1439-1.14415]
+  // (zfp 20 — the entry 1.14390 = its near edge) was EXCLUDED → the E2
+  // designated the sliver → the golden gate Δ14.2p MISS. The quality filter:
+  // zfp ≤ 25 OR a FRESH/TESTED freshness — the operator's structures (the
+  // golden rungs zfp 20, the Friday supply zfp 22 TESTED_1X) are admitted;
+  // the VIOLATED zfp-70 slivers are not. Fallback to the nearest-ANY (the
+  // pre-C-2 behavior) when no quality structure exists beyond the open.
+  // THE C-3B REWRITE (2026-08-11 — Machine C, the zone-anchor law — SITE-5):
+  // the quality reach extension also sorts by the STRUCTURAL strength (the
+  // pressure DESC, then the zfp ASC), never the floor distance — the
+  // operator's structural zone (the BoM 1.14460) wins over a closer quality
+  // rung. The floor distance is the final tie-break only.
+  const nearestQualitySupplyAbove = (z: readonly DXYZone[]): number | null => {
+    const isQuality = (x: DXYZone): boolean =>
+      (x.zfp ?? 99) <= 25
+      || x.reactionStatus === 'virgin'
+      || x.reactionStatus === 'active';
+    const q = z.filter((x) => isSupplyZone(x) && isQuality(x) && x.floor > dayOpenSpot)
+      .sort((a, b) =>
+        (pressureScoreOf(zoneToLexiconPressure(b)) - pressureScoreOf(zoneToLexiconPressure(a))) ||
+        ((a.zfp ?? 99) - (b.zfp ?? 99)) ||
+        (a.floor - b.floor))[0];
+    return q ? q.ceiling : null;
+  };
+  const nearestDemandBelow = (z: readonly DXYZone[]): number | null => {
+    const q = z.filter((x) => isDemandZone(x) && x.ceiling < dayOpenSpot)
+      .sort((a, b) => b.ceiling - a.ceiling)[0];
+    return q ? q.floor : null;
+  };
+  // THE C-2 FIX (2026-08-11 — Machine C): the R1-b dayReachHigh clamp
+  // CONTRADICTED the W3 map-derived-reach doctrine — `dayReachHigh != null ?
+  // Math.min(supplyReachRaw, dayReachHigh)` EXCLUDED the operator's near-open
+  // primary (the golden DXY SHORT supply 101.235-101.240, 24p above the open,
+  // lost to the 12p travel band → the E2 picked the wrong supply 100.913 →
+  // the golden gate 20.4p MISS). THE DOCTRINE (:1810-1812 — "the reach
+  // extends to the FIRST quality structure beyond the open — the operator's
+  // Friday supply 1.14460 (24.8p above the EU open) stays reachable even
+  // with the tight ATR-proxy band, and the DXY's 101.14 structure (7.1p)
+  // stays the near-open primary"): the near-open structure is ALWAYS
+  // reachable — the travel band defines the SWEEP target, never the ceiling
+  // of what the E2 may designate. The reach = max(shape reach, nearest
+  // structure), then min with the day's ACTUAL high (the R1-b bound stands —
+  // the designation never exceeds the day's reachable structure).
+  // THE R1-B CLAMP RECONCILIATION (2026-08-11 — Machine C): the
+  // dayReachHigh clamp (the R1-b "the designation never exceeds the day's
+  // reachable structure") applies to the SHAPE reach ONLY — the QUALITY
+  // extension (the operator's structure — the Friday supply 1.14460, formed
+  // in the PRIOR week → absent from dayReachHigh's day-formed window) must
+  // STAND. The W8B doctrine: "the operator's Friday supply 1.14460 (24.8p
+  // above the EU open) stays reachable even with the tight ATR-proxy band".
+  const qualitySupplyReach = nearestQualitySupplyAbove(pool) ?? nearestSupplyAbove(pool) ?? dayOpenSpot;
+  const supplyReach = dayReachHigh != null
+    ? Math.max(Math.min(supplyReachRaw, dayReachHigh), Math.min(qualitySupplyReach, dayReachHigh))
+    : Math.max(supplyReachRaw, qualitySupplyReach);
+  const demandReach = dayReachLow != null
+    ? Math.max(Math.min(demandReachRaw, nearestDemandBelow(pool) ?? dayOpenSpot), dayReachLow)
+    : Math.min(demandReachRaw, nearestDemandBelow(pool) ?? dayOpenSpot);
   // Wave R1-b — the candidate floor/ceiling is the DAY's actual reach band:
   // a SHORT supply is day-reachable when its floor sits at/below the day's
   // actual high AND at/above the day's actual low (the designation's internal
@@ -1418,16 +1901,114 @@ function projectZoneForDay(
   // bound (the projected London open) is replaced by the day's reachable low
   // when the day band is known; the old `z.ceiling <= dayOpenSpot` bound is
   // replaced by the day's reachable high. Unknown band → dayOpenSpot (byte-identical).
-  const supplyFloor = dayReachLow != null ? dayReachLow : dayOpenSpot;
-  const demandCeiling = dayReachHigh != null ? dayReachHigh : dayOpenSpot;
-  const supplyCands = pool.filter((z: DXYZone) => isSupplyZone(z)
-    && z.floor >= supplyFloor
+  // THE C-2 FIX (2026-08-11 — Machine C): the R1-b day-reach bounds must
+  // never REVERSE the entry-rung orientation (:1543-1548 — "SHORT days
+  // designate SUPPLY ABOVE the day's predicted spot; LONG days designate
+  // DEMAND BELOW it"). The R1-b rewrite replaced the open bound with the
+  // day's reachable low/high UNCONDITIONALLY — a SHORT day's supplyFloor =
+  // dayReachLow (the day's demand floor, below the open) ADMITTED the
+  // below-open supply DXY|1H|...100.913 as the DXY Monday SHORT designation
+  // (the golden gate Δ20.4p MISS — the operator's golden supply 101.14 was
+  // reachable but the below-open sliver won by proximity). The day-reach
+  // bound applies ONLY where it TIGHTENS the open bound on the side's own
+  // orientation: the supply floor = max(dayLow, open) — never below the open;
+  // the demand ceiling = min(dayHigh, open) — never above the open.
+  const supplyFloor = dayReachLow != null
+    ? Math.max(dayReachLow, dayOpenSpot)
+    : dayOpenSpot;
+  const demandCeiling = dayReachHigh != null
+    ? Math.min(dayReachHigh, dayOpenSpot)
+    : dayOpenSpot;
+  // Wave 3 (2026-08-06) — the DAY-LEVEL TEMPORAL CONSTRAINT is added to BOTH
+  // candidate pools: a zone formed AFTER the day being designated (formationMs
+  // > dayLimitMs — the day's end capped by the run anchor) is EXCLUDED — the
+  // belt+suspenders on the Wave-1 bar gate. The operator's day-by-day law: a
+  // Tuesday-anchored run designating Monday's zones cannot use a Wednesday
+  // formation. dayLimitMs null (no week anchor — the legacy no-storyline,
+  // no-lock path) → the clause is inert (byte-identical). LMV rungs carry no
+  // formation ms (formationMsOf → 0 ≤ dayLimitMs — never excluded — the WHERE).
+  // THE C-2 FIX (2026-08-11 — Machine C, final): the ORIENTATION bound is the
+  // zone's TOP above the open for supplies (its interior rungs — the
+  // operator's entries — are reachable ABOVE the open: the golden DXY supply
+  // [101.027-101.153] STRADDLES the open 101.048, its rung 101.14 = the
+  // operator's entry), and the zone's BOTTOM below the open for demands. The
+  // old `z.floor >= dayOpenSpot` excluded the straddling golden zone; the
+  // R1-b `dayReachLow` admitted the below-open sliver 100.913. The top-above
+  // bound admits the straddling zone AND excludes the fully-below sliver.
+  // THE C-2 FIX (2026-08-11 — Machine C, FINAL): the SELL_SIDE rung
+  // admission is UNCONDITIONAL on the SUPPLY lane (the operator's golden
+  // SHORT structures ARE the SELL_SIDE rungs — the DXY entry 101.120 = the
+  // rung [101.12-101.154]'s bottom, the EU entry 1.14390 = the rung
+  // [1.1439-1.14415]'s bottom — "LQZ at 1.1444-1.14395 ~ using this as the
+  // entry zone anchor"). The resting-side pass typed them DEMAND (inside
+  // DEMAND containers) → the plain isSupplyZone filter EXCLUDED the
+  // operator's entries → the E2 designated the VIOLATED slivers (the Δ14.2p
+  // EU MISS + the DXY sliver). The BUY_SIDE lane stays UNCHANGED (the DEMAND
+  // admission never extends to the rungs — the earlier attempt admitted
+  // both sides and FLIPPED the DXY direction; the LONG structures resolve
+  // through the plain demand zones + the fortress). The WIDTH tie-break
+  // (the strongest() sort) then promotes the SUBSTANTIAL rung over the 0.5p
+  // sliver at equal pressure/zfp — the operator's "I will not do 1 pip on a
+  // big zone... it needs to scale w/ the market conditions".
+  if (process.env.C2_DEBUG) console.log(`[C2-CANDS] ${day} dir=${direction} open=${dayOpenSpot} reach=${supplyReach.toFixed(5)} dayHigh=${dayReachHigh} qualityReach=${(nearestQualitySupplyAbove(pool) ?? -1).toFixed(5)}`);
+  // THE C-2 FINAL FIX (2026-08-11 — Machine C): the SELL_SIDE rung admission
+  // fires when NO quality plain SUPPLY zone OVERLAPS the rung's band — the
+  // rung is then the operator's ENTRY structure (the entry rung sits BELOW
+  // the quality zone: the EU golden rung [1.1439-1.14415] — the operator's
+  // 1.14390 entry — under the Friday supply [1.1446-1.14571] which is the SL
+  // context, NOT the entry; "LQZ at 1.1444-1.14395 ~ using this as the entry
+  // zone anchor"). When a quality zone CONTAINS/overlaps the rung (the DXY
+  // golden zone [101.027-101.153] contains the entry rung [101.12-101.154] —
+  // the internal-rung resolution gives the operator's 101.120), the zone
+  // suffices and the rung stays out (the 2/5 state — the DXY unchanged).
+  // The substantial-rung floor also applies (the operator's "I will not do 1
+  // pip on a big zone... it needs to scale" — the 0.5p sliver dies).
+  const qualitySupplyZones = pool.filter((z: DXYZone) => isSupplyZone(z)
+    && (z.zfp ?? 99) <= 25
+    && z.ceiling > dayOpenSpot
     && z.floor <= supplyReach
-    && inBand(z));
-  const demandCands = pool.filter((z: DXYZone) => isDemandZone(z)
-    && z.ceiling <= demandCeiling
+    && inBand(z)
+    && (dayLimitMs == null || formationMsOf(z) <= dayLimitMs));
+  const rungOverlapsQualityZone = (z: DXYZone): boolean =>
+    qualitySupplyZones.some((q) => z.ceiling > q.floor && z.floor < q.ceiling);
+  const isAdmissibleRung = (z: DXYZone): boolean =>
+    z.side === 'SELL_SIDE'
+    && (z.ceiling - z.floor) >= pipSize
+    && !rungOverlapsQualityZone(z);
+  const supplyCands = pool.filter((z: DXYZone) => (isSupplyZone(z) || isAdmissibleRung(z))
+    && z.ceiling > dayOpenSpot
+    && z.floor <= supplyReach
+    && inBand(z)
+    && (dayLimitMs == null || formationMsOf(z) <= dayLimitMs));
+  if (process.env.C2_DEBUG) console.log(`[C2-CANDS] supply cands=${supplyCands.length} first3=${supplyCands.slice(0,3).map(z => z.id + '@' + z.zfp).join(' | ')}`);
+  if (process.env.C2_DEBUG) {
+    const golden = pool.find((z: DXYZone) => z.id === 'LMV|EUR/USD|1.14370' && Math.abs(z.ceiling - 1.14415) < 1e-9);
+    if (golden) {
+      const qz = qualitySupplyZones.filter((q) => golden!.ceiling > q.floor && golden!.floor < q.ceiling);
+      console.log(`[C2-CANDS] EU golden rung admitted=${supplyCands.some((z) => z.id === golden!.id)} overlapsQ=${qz.length} side=${golden!.side} type=${golden!.type} w=${((golden!.ceiling - golden!.floor) / (dayOpenSpot > 50 ? 0.01 : 0.0001)).toFixed(1)}p`);
+    }
+  }
+
+  // THE DEMAND LANE (the 2/5 baseline restored): the plain DEMAND zones
+  // first; the BUY_SIDE rung admission fires ONLY when no quality demand
+  // zone exists (the DXY LONG's golden demand LMV|DXY|100.95000 [100.885-
+  // 100.918] rides this path — the resting-side container-wins typed it
+  // DEMAND so it IS in the plain lane; the fallback protects the fortress
+  // lanes). The 0/5 regression came from removing this gate (the DXY LONG
+  // demand pick shifted → Δ11.1p).
+  const demandZoneCands = pool.filter((z: DXYZone) => isDemandZone(z)
+    && z.floor < dayOpenSpot
     && z.ceiling >= demandReach
-    && inBand(z));
+    && inBand(z)
+    && (dayLimitMs == null || formationMsOf(z) <= dayLimitMs));
+  const hasQualityDemandZone = demandZoneCands.some((z) => (z.zfp ?? 99) <= 25);
+  const demandCands = hasQualityDemandZone
+    ? demandZoneCands
+    : pool.filter((z: DXYZone) => (isDemandZone(z) || z.side === 'BUY_SIDE')
+        && z.floor < dayOpenSpot
+        && z.ceiling >= demandReach
+        && inBand(z)
+        && (dayLimitMs == null || formationMsOf(z) <= dayLimitMs));
 
   // Strongest = lowest ZFP, then closest to the side's reach reference.
   // (2026-07-31 FIX): the pick targets the side's REACH — the PRIMARY side aims at
@@ -1443,13 +2024,69 @@ function projectZoneForDay(
   // the day-local structure wins (the recency bias as a factor); an older zone
   // of superior strength still wins (the recency is NOT the law). The pick
   // never leaves the E2 pathway (cands is already the reach-filtered pool).
-  const strongest = (cands: DXYZone[], reach: number): DXYZone | undefined =>
-    [...cands].sort((a: DXYZone, b: DXYZone) =>
-      (a.zfp - b.zfp) ||
+  const strongest = (cands: DXYZone[], reach: number): DXYZone | undefined => {
+    // ── THE ZONE-ANCHORED TOTAL ORDER (the C-3B rewrite — 2026-08-11 — the
+    //    operator's law VERBATIM: "NOTHING SHOULD BE PRICE ANCHORED EVER...
+    //    E1 CALCULATES THE EXACT ZONES... I SPENT 2 FUCKING WEEKS BUILDING
+    //    MPSE ENGINES FOR E1 FOR LITERALLY EXACTLY THIS. USE THEM.") ──
+    //    The E1 MPSE structural outputs ARE the zone anchors. The ranking:
+    //    1. THE VALIDITY GATES (the FILTERS — the C-2/C-3 class, STAY as
+    //      demotions, never the ranking): the non-depleted (pressure > −30),
+    //      the zfp ≤ 25 (quality), the side orientation (the SUPPLY floor
+    //      ABOVE the open; the DEMAND ceiling within the 0.5p straddle — the
+    //      C-3 per-day gate), the width ≥ 1 pip (the slivers die). A
+    //      gate-failing candidate ranks AFTER every passing candidate
+    //      (Infinity).
+    //    2. THE PRESSURE DESC (the +40 VIRGIN-BoM / +20 FORTRESS / −30
+    //      DEPLETED — the operator-confirmed W3 sign: "yeah thats an issue
+    //      it should be the opposite" — the DEPLETED sorts LAST).
+    //    3. THE ZFP ASC (the failure probability — the strength).
+    //    4. THE CLASSIFICATION (the BoM over the MoM — the structural walls).
+    //    5. THE WIDTH DESC (the operator's scale law — "I will not do 1 pip
+    //      on a big zone... it needs to scale w/ the market conditions").
+    //    6. THE REACTIONS DESC (the most-battled levels).
+    //    7. THE DAYWINDOW + THE RECENCY (the factors, never the law).
+    //    8. THE PRICE POSITION — THE FINAL TIE-BREAK ONLY (the ladder-steps:
+    //      at EQUAL structural standing the near-open step wins). NEVER the
+    //      primary — the price distance from the open is E3's job.
+    //    THE PER-DAY VARIATION comes from the E2 shape-driven designation +
+    //    the E3 chained entries — NOT the open-distance ranking (the D97
+    //    fix — the 8 losses were the price-anchored selection: the EU Tue S
+    //    1.14189 vs the operator's structural BoM 1.14460).
+    const supplySide = cands.length > 0
+      && (isSupplyZone(cands[0]!) || (cands[0] as { side?: string }).side === 'SELL_SIDE');
+    const demandSide = cands.length > 0
+      && (isDemandZone(cands[0]!) || (cands[0] as { side?: string }).side === 'BUY_SIDE');
+    const gateOf = (z: DXYZone): boolean =>
+      (pressureScoreOf(zoneToLexiconPressure(z)) <= -30 || (z.zfp ?? 99) > 25
+        || (supplySide ? z.floor <= dayOpenSpot
+            : demandSide ? z.ceiling > dayOpenSpot + 0.5 * pipSize : false)
+        || (z.ceiling - z.floor) < pipSize);
+    return [...cands].sort((a: DXYZone, b: DXYZone) =>
+      // 1. THE VALIDITY GATES (the filters — the C-2/C-3 class, demoted).
+      ((gateOf(a) ? 1 : 0) - (gateOf(b) ? 1 : 0)) ||
+      // 2. THE PRESSURE DESC (the E1 MPSE — THE PRIMARY leg).
+      (pressureScoreOf(zoneToLexiconPressure(b)) - pressureScoreOf(zoneToLexiconPressure(a))) ||
+      // 3. THE ZFP ASC.
+      ((a.zfp ?? 99) - (b.zfp ?? 99)) ||
+      // 4. THE CLASSIFICATION (the BoM over the MoM).
+      ((b.isBoM ? 1 : 0) - (a.isBoM ? 1 : 0)) ||
+      // 5. THE WIDTH DESC (the operator's scale law).
+      ((b.ceiling - b.floor) - (a.ceiling - a.floor)) ||
+      // 6. THE REACTIONS DESC (the most-battled).
+      ((b.reactionCount ?? 0) - (a.reactionCount ?? 0)) ||
+      // 7. THE DAYWINDOW + THE RECENCY (the factors, never the law).
+      (dayWindowRank(b) - dayWindowRank(a)) ||
       (recencyRank(a) - recencyRank(b)) ||
-      (Math.abs(zoneCenter(a) - reach) - Math.abs(zoneCenter(b) - reach)),
+      // 8. THE PRICE POSITION — the FINAL tie-break ONLY (the ladder-steps
+      //    at equal structural standing; the center-distance from the open).
+      (Math.abs(zoneCenter(a) - dayOpenSpot) - Math.abs(zoneCenter(b) - dayOpenSpot)) ||
+      // The final id tie-break — TOTAL comparator (deterministic on exact ties).
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     )[0];
+  }
 
+  if (process.env.C2_DEBUG) console.log(`[C2-SORT] ${day} dir=${direction} supplyCands=${supplyCands.length} sorted=${[...supplyCands].sort((a: DXYZone, b: DXYZone) => (pressureScoreOf(zoneToLexiconPressure(b)) - pressureScoreOf(zoneToLexiconPressure(a))) || ((a.zfp ?? 99) - (b.zfp ?? 99))).slice(0,5).map(z => z.id.split('|')[2] + '@z' + z.zfp + '@p' + pressureScoreOf(zoneToLexiconPressure(z)) + '@w' + ((z.ceiling - z.floor) / (dayOpenSpot > 50 ? 0.01 : 0.0001)).toFixed(1) + 'p').join(' | ')}`);
   let supplyPick: DXYZone | undefined;
   let demandPick: DXYZone | undefined;
   let pick: DXYZone | undefined;
@@ -1482,18 +2119,18 @@ function projectZoneForDay(
   //    rungs (the overlap) — the rung-direct designation bypasses the band
   //    fidelity entirely. The S/D zones remain the SL/TP context + the
   //    RANGE-day fallback.
-  const supplyRungs = supplyCands.filter((z: DXYZone) => z.id.startsWith('LMV|'));
-  const demandRungs = demandCands.filter((z: DXYZone) => z.id.startsWith('LMV|'));
-  if (supplyRungs.length > 0) {
-    supplyPick = strongest(supplyRungs, supplyReachRef);
-  } else {
-    supplyPick = strongest(supplyCands, supplyReachRef);
-  }
-  if (demandRungs.length > 0) {
-    demandPick = strongest(demandRungs, demandReachRef);
-  } else {
-    demandPick = strongest(demandCands, demandReachRef);
-  }
+  // ── THE §8.1 UNION POOL (the §2.3 STAGE 2 rewrite — the W3 wave,
+  //    2026-08-10): zones AND rungs are ONE candidate set. The old
+  //    rung-direct bypass (if supplyRungs.length > 0 → pick = strongest
+  //    (supplyRungs)) meant the operator's S/D zone [101.027-101.153] was
+  //    NEVER evaluated once any LMV rung survived — the C-3 root. Now the
+  //    rungs rank INSIDE the one pool (the pressure-DESC evidence order),
+  //    and the I2 S/D-preference promotes the containing zone at equal
+  //    structural position (the EU Monday's nearest-zone promotion is the
+  //    TARGET behavior — the Friday supply 1.14460 win, preserved).
+  if (process.env.C2_DEBUG) console.log(`[C2-PICK] ${day} supplyPick=${strongest(supplyCands, supplyReachRef)?.id ?? 'null'} demandPick=${strongest(demandCands, demandReachRef)?.id ?? 'null'}`);
+  supplyPick = strongest(supplyCands, supplyReachRef);
+  demandPick = strongest(demandCands, demandReachRef);
   // ── Wave ZR-6D — THE DEEP-DEMAND DESIGNATION (the SECOND demand). The
   //    operator's EU #6 (verbatim): "Looking left to see what relevant LQZs
   //    exist beneath this demand, one is clearly visible at 1.13935 -
@@ -1530,8 +2167,18 @@ function projectZoneForDay(
       z.ceiling >= deepFloor - 1e-9 &&
       inBand(z));
     if (deepPool.length > 0) {
+      // THE C-3B REWRITE (2026-08-11 — Machine C, the zone-anchor law —
+      // SITE-6): the deep demand ranks by the E1 MPSE STRUCTURAL outputs —
+      // the pressure DESC (the BoM/fortress — the operator's #6 read: "this
+      // LQZ is the LQ shield of the BoM 4H bullish OB"), then the zfp ASC,
+      // then the reactions DESC — the PRICE distance (the center-to-primary
+      // leg) demoted to the FINAL tie-break. The operator's deep read is
+      // STRUCTURAL ("the deepest strong structure"), never "the nearest to
+      // the primary's floor".
       deepDemandPick = [...deepPool].sort((a: DXYZone, b: DXYZone) =>
+        (pressureScoreOf(zoneToLexiconPressure(b)) - pressureScoreOf(zoneToLexiconPressure(a))) ||
         (a.zfp - b.zfp) ||
+        ((b.reactionCount ?? 0) - (a.reactionCount ?? 0)) ||
         (recencyRank(a) - recencyRank(b)) ||
         (Math.abs(zoneCenter(a) - demandPick!.floor) - Math.abs(zoneCenter(b) - demandPick!.floor)),
       )[0];
@@ -1552,9 +2199,16 @@ function projectZoneForDay(
     pick = strongest([...supplyCands, ...demandCands], expectedReach);
   }
 
+  // THE C-2 FIX (2026-08-11 — Machine C): the pickSide derives from the
+  // pick's BATTLE SIDE too — a SELL_SIDE rung (container-typed DEMAND by the
+  // resting-side pass) is the operator's SHORT structure (the DXY golden
+  // entry rung [101.12-101.154] — the 101.120 SHORT): pickSide SUPPLY → the
+  // RANGE-day keyZoneType SUPPLY → the direction SHORT (the operator's DXY
+  // Monday read). The container-typed DEMAND would flip the day to LONG
+  // (the Δ11.1p regression).
   const pickSide: 'SUPPLY' | 'DEMAND' | undefined =
-    pick && isSupplyZone(pick) ? 'SUPPLY'
-      : pick && isDemandZone(pick) ? 'DEMAND'
+    pick && (isSupplyZone(pick) || pick.side === 'SELL_SIDE') ? 'SUPPLY'
+      : pick && (isDemandZone(pick) || pick.side === 'BUY_SIDE') ? 'DEMAND'
         : undefined;
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1615,7 +2269,13 @@ function projectZoneForDay(
     // The zone's ACTIVE edge (the sweep edge the shape's move sweeps into):
     // SUPPLY → the ceiling; DEMAND → the floor. An internal rung is "near"
     // the active edge when its far edge sits within the near-edge band.
-    const NEAR_ACTIVE_EDGE_PIPS = 5;
+    // THE EDGE-DISTANCE BAND (§2.3 STAGE 5 — the W3 wave, 2026-08-10 — the
+    // M-2 fix): the strict containment (r.ceiling <= z.ceiling + 1e-9) killed
+    // the operator's 101.14 rung [101.12-101.154] promotion into its supply
+    // [101.027-101.153] — the 0.1p overhang failed the bit-exact check. The
+    // band = dataDerivedTravel(...).nearEdge (the ATR-proxy band — NEVER the
+    // fixed 5).
+    const edgeBandPips = derivedTravel.nearEdge > 0 ? derivedTravel.nearEdge : 5;
     const activeEdgeOf = (z: DXYZone): number =>
       pickSide === 'SUPPLY' ? z.ceiling : z.floor;
     const qualifying = sideCands
@@ -1631,8 +2291,33 @@ function projectZoneForDay(
         // side — the §8.1 "Fire = the containing S/D zone" structural union.
         internal: pool.filter((r) =>
           String(r.id).startsWith('LMV|') &&
-          (pickSide === 'SUPPLY' ? isSupplyZone(r) : isDemandZone(r)) &&
-          r.floor >= z.floor - 1e-9 && r.ceiling <= z.ceiling + 1e-9),
+          // THE C-2 SIDE-AWARE INTERNAL FILTER (2026-08-11 — Machine C):
+          // the internal rungs match by the BATTLE SIDE, never the
+          // container-typed type — the operator's golden DXY rung
+          // [101.12-101.154] (SELL_SIDE — typed DEMAND by the resting-side
+          // pass) was EXCLUDED from the [101.027-101.153] zone's internal
+          // search → the qualifying sort found only the 4H [101.226-101.432]
+          // (zfp 38 — the quality gate rejected the override) → the E2's
+          // supplyPick stayed the 3.8p rung (the Δ4.8p MISS). The side
+          // (SELL_SIDE → SUPPLY) is the battle behavior.
+          (pickSide === 'SUPPLY'
+            ? (isSupplyZone(r) || (r as { side?: string }).side === 'SELL_SIDE')
+            : (isDemandZone(r) || (r as { side?: string }).side === 'BUY_SIDE')) &&
+          // THE M-2 EDGE-BAND CONTAINMENT (the C-2 completion — 2026-08-11):
+          // the strict bit-exact containment (`r.ceiling <= z.ceiling +
+          // 1e-9`) killed the operator's golden DXY rung [101.12-101.154]
+          // promotion into its supply zone [101.027-101.153] — the rung's
+          // ceiling 101.154 EXCEEDS the zone's 101.153 by 0.1p → the I2
+          // qualifying search found NO internal rung → the zone-override
+          // never fired → the E2's supplyPick stayed the 3.8p rung
+          // [101.188-101.226] (the Δ4.8p MISS). The M-2 comment (:2271)
+          // DESCRIBES this exact case — "the 0.1p overhang failed the
+          // bit-exact check. The band = dataDerivedTravel(...).nearEdge" —
+          // but the band was only applied to the ACTIVE-EDGE distance check
+          // below, never to the CONTAINMENT. The containment now tolerates
+          // the nearEdge overhang: `r.ceiling <= z.ceiling + nearEdge*pip`.
+          r.floor >= z.floor - 1e-9
+            && r.ceiling <= z.ceiling + (edgeBandPips > 0 ? edgeBandPips * pipSize : 1e-9)),
       }))
       // CONTAINS rungs (the zone is a Fire bearing the Earth) …
       .filter((c) => c.internal.length > 0)
@@ -1642,20 +2327,44 @@ function projectZoneForDay(
       // structural position the pick pointed at.
       .filter((c) => c.internal.some((r) => {
         const farEdge = pickSide === 'SUPPLY' ? r.ceiling : r.floor;
-        return Math.abs(activeEdgeOf(c.z) - farEdge) / pipSize <= NEAR_ACTIVE_EDGE_PIPS;
+        return Math.abs(activeEdgeOf(c.z) - farEdge) / pipSize <= edgeBandPips;
       }))
       // Position-aware tie-break (fix point 1): the zone whose INTERNAL LMV
       // rungs sit NEAREST the expectedReach (RANGE-aware — the top-of-range)
       // wins — the position-in-structure signal (then the zone's own strength,
-      // then id — total, deterministic).
+      // then id — total, deterministic). THE C-2 QUALITY-PRIORITY (2026-08-11
+      // — Machine C): the QUALITY zones (zfp ≤ 25 — the operator's
+      // structures) rank BEFORE the non-quality (the VIOLATED/DEPLETED
+      // slivers — the DXY's 4H [101.226-101.432] zfp 38 sorted first by the
+      // position, but the operator's golden zone [101.027-101.153] zfp 22 is
+      // the override target). The zfp leg moves BEFORE the position leg.
+      // THE C-3B REWRITE (2026-08-11 — Machine C, the zone-anchor law —
+      // SITE-7): the I2 qualifying sort ranks by the E1 MPSE STRUCTURAL
+      // outputs FIRST — the pressure DESC (the FORTRESS +20 / the VIRGIN-BoM
+      // +40 over the bare), then the zfp ASC (the C-2 quality-priority
+      // preserved — the operator's golden zone [101.027-101.153] zfp 22 over
+      // the 4H [101.226-101.432] zfp 38) — the INTERNAL-RUNG REACH-DISTANCE
+      // (the price position) demoted to the FINAL tie-break.
       .sort((a, b) => {
-        const nearA = Math.min(...a.internal.map((r) => Math.abs(zoneCenter(r) - i2SortReach)));
-        const nearB = Math.min(...b.internal.map((r) => Math.abs(zoneCenter(r) - i2SortReach)));
-        return (nearA - nearB) ||
+        return (pressureScoreOf(zoneToLexiconPressure(b.z)) - pressureScoreOf(zoneToLexiconPressure(a.z))) ||
           (a.z.zfp - b.z.zfp) ||
+          (Math.min(...a.internal.map((r) => Math.abs(zoneCenter(r) - i2SortReach)))
+           - Math.min(...b.internal.map((r) => Math.abs(zoneCenter(r) - i2SortReach)))) ||
           (a.z.id < b.z.id ? -1 : a.z.id > b.z.id ? 1 : 0);
       })[0];
-    if (qualifying) {
+    // THE C-2 FIX (2026-08-11 — Machine C): the I2 S/D-zone override fires
+    // ONLY when the qualifying zone is a QUALITY structure (zfp ≤ 25 — the
+    // operator's structures). The EU Monday: the golden SELL_SIDE rung
+    // [1.1439-1.14415] (zfp 20 — the operator's 1.14390 SHORT entry) would
+    // be overridden by the VIOLATED zone [1.14245-1.14293] (zfp 70 — the
+    // Δ14.2p MISS) whose internal 1.1425x rungs (container-typed SUPPLY)
+    // qualified. The I2 was built to promote the operator's ZONE over a BARE
+    // rung (the EU 1.14544 golden) — the promotion to a VIOLATED sliver is
+    // the anti-fit ("the market will eat all fixed const hardcoded garbage
+    // alive" — a zfp-70 zone is garbage). The DXY golden zone
+    // [101.027-101.153] (zfp 22) still qualifies (the 2/5 state preserved).
+    if (process.env.C2_DEBUG) console.log(`[C2-I2] ${day} pick=${pick?.id} pickSide=${pickSide} qualifying=${qualifying ? qualifying.z.id + '@z' + qualifying.z.zfp + ' internal=' + qualifying.internal.length : 'NONE'}`);
+    if (qualifying && (qualifying.z.zfp ?? 99) <= 25) {
       // Designate the S/D ZONE (the Fire). ZR-6A: the exact entry (the
       // internal rung's NEAR EDGE — the Earth) is E3's resolution from the
       // zone geometry — E2 emits the zone anchor only.
@@ -1691,20 +2400,49 @@ function projectZoneForDay(
     // entry/TP from the zone geometry (keyZonePrice / supplyZonePrice /
     // demandZonePrice are GONE from the E2 output).
     keyZoneId: pick?.id ?? '',
-    supplyZoneId: supplyPick?.id,
-    demandZoneId: demandPick?.id,
+    // THE C-2 FIX (2026-08-11 — Machine C): the LMV designation carries the
+    // BAND — the telescoped tiers share the `LMV|pair|center` id (the EU
+    // Monday's 1.14370 center has THREE rungs); the band-qualified id pins
+    // the EXACT tier the strongest() picked — the chain's resolver + the
+    // mirror's exact-string consumers strip the suffix (stripBandSuffix —
+    // backward compatible). The keyZoneId stays UNQUALIFIED.
+    supplyZoneId: supplyPick?.id ? (supplyPick.id.startsWith('LMV|')
+      ? `${supplyPick.id}|${supplyPick.floor.toFixed(5)}|${supplyPick.ceiling.toFixed(5)}`
+      : supplyPick.id) : undefined,
+    demandZoneId: demandPick?.id ? (demandPick.id.startsWith('LMV|')
+      ? `${demandPick.id}|${demandPick.floor.toFixed(5)}|${demandPick.ceiling.toFixed(5)}`
+      : demandPick.id) : undefined,
     // ZR-6D: the PRIMARY side (the RANGE-day direction signal — the A1.4
     // top-of-range SUPPLY primary → the SHORT direction consumes the
     // keyZoneId) + the SECOND demand (the deep demand beneath the primary).
-    keyZoneType: pick ? (isSupplyZone(pick) ? 'SUPPLY' : 'DEMAND') : undefined,
+    // THE C-2 FIX (2026-08-11 — Machine C): the keyZoneType derives from the
+    // pick's BATTLE SIDE, not its container-typed type. The resting-side pass
+    // types a SELL_SIDE rung inside a DEMAND container as DEMAND — the
+    // golden DXY entry rung [101.12-101.154] (the operator's 101.120 SHORT)
+    // would keyZoneType DEMAND → the E2 direction FLIPS to LONG (the Δ11.1p
+    // regression). The operator's structure IS the SELL_SIDE rung — the
+    // sellers defend the highs — the keyZoneType = SUPPLY → SHORT. The side
+    // (carried from the LMV matrix) wins over the container type.
+    keyZoneType: pick ? (isSupplyZone(pick) || pick.side === 'SELL_SIDE' ? 'SUPPLY'
+      : isDemandZone(pick) || pick.side === 'BUY_SIDE' ? 'DEMAND'
+      : (isSupplyZone(pick) ? 'SUPPLY' : 'DEMAND')) : undefined,
     deepDemandZoneId: deepDemandPick?.id,
     floor,
     ceiling,
     dayOpenSpot,
     // The day's session — the existing SHAPE_SESSION_MAP (single source of truth).
     session: getSessionForShape(shape),
-    // The shape day's confidence (pass-through).
-    confidence: confidence ?? 0.5,
+    // THE EVIDENCE-DERIVED CONFIDENCE (§2.7.6 — the W3 wave, 2026-08-10 —
+    // the M-8 fix): derived from the data the pick consumed (the zfp + the
+    // pressure) — NEVER the fabricated 0.5 default. A designation with NO
+    // evidence -> the honest low-confidence floor 0.05 + the loud log.
+    confidence: pick
+      ? Math.min(0.95, Math.max(0.05, 0.5 + 0.25 * (1 - (pick.zfp ?? 50) / 100)
+        + 0.25 * ((pressureScoreOf(zoneToLexiconPressure(pick)) + 30) / 70)))
+      : (() => {
+          if (process.env.E2_NO_EVIDENCE_DEBUG) console.log('[E2] DESIGNATION_NO_EVIDENCE — day=' + day + ' shape=' + shape + ' (the honest 0.05 floor, never a fabricated 0.5)');
+          return 0.05;
+        })(),
   };
 }
 
@@ -1853,7 +2591,16 @@ function buildDayDecomposition(
         break;
 
       case ShapeCode.R:
-        direction = 'NEUTRAL';
+        // THE C-5 KILL (§2.4 — the operator's recovery semantics): the R
+        // (recovery) day is NOT directionless — the recovery RISES back
+        // toward the pre-breakout level (the supply above = the recovery's
+        // TARGET, the demand below = the entry fuel). The direction derives
+        // from the E1 pressure evidence via recoveryDirection() — NEVER the
+        // blanket NEUTRAL→RANGE→supply-primary flattening (the GU Monday was
+        // SHORT at the 1.33623 supply; the operator's GU Monday is LONG at
+        // the demand below). The MACRO AUTHORITY (the cascade — report-v452's
+        // applyDivergence, the G3 contract) overrides at > 0.35 divergence.
+        direction = recoveryDirection(zones, spot);
         confidence = Math.max(CONFIDENCE_LOW, 0.68 - i * 0.03);
         keyZone = nearestSupply && nearestDemand
           ? `Recovery toward ${zoneLabel(nearestSupply)} / ${zoneLabel(nearestDemand)}`
@@ -1898,6 +2645,10 @@ function buildDayDecomposition(
         break;
 
       default:
+        // §2.4 — the ONLY remaining default — documented, never silent. A
+        // shape outside the explicit cases (impossible per the 12-member
+        // ShapeCode) → NEUTRAL → the §2.4 pressure-evidence resolution in
+        // toEntryDirection (never the RANGE collapse).
         direction = 'NEUTRAL';
         confidence = Math.max(CONFIDENCE_LOW, 0.65 - i * 0.03);
         keyZone = '—';
@@ -1919,7 +2670,7 @@ function buildDayDecomposition(
     // The E2-designated ENTRY zone: SHORT days → supply ABOVE the day's predicted
     // London-open spot; LONG days → demand BELOW it. The DayBand carry updates to
     // this day's dayOpenSpot — the next day's priorDayClose (the forward chain).
-    const e1Direction = toEntryDirection(direction);
+    const e1Direction = toEntryDirection(direction, zones, spot);
     const szd = projectZoneForDay(
       day.slice(0, 3),
       shape,
@@ -2206,6 +2957,18 @@ function buildShapeChain(
   instrument?: string,
   ltfZones: readonly DXYZone[] = [],
   priorWeekStoryline?: PriorWeekStoryline | null,
+  // THE C-3 FIX (2026-08-11 — Machine C): the INJECTED SHAPE SEQUENCE — the
+  // operator's shared-waveform law ("why is the E2 shape chain for GU not
+  // literally the exact same as EU with the only difference between the 2
+  // being the E3 setups?"). The GU's own shape prediction degenerated to
+  // SS×4+WL (its zone map collapses the transition chain) → the same
+  // designation every day → the identical-trade slop. When the EU's chain
+  // is injected (the EUR/USD + the GBP/USD share the SAME macro waveform),
+  // the chain's SHAPES follow the EU's sequence (the SS/BS/R/BS/WL — the
+  // shared waveform) while the ZONE DESIGNATIONS still resolve on THIS
+  // pair's own zones (the E3's raw material — the only difference between
+  // the EU and the GU). Absent → the pair's own prediction (unchanged).
+  injectedChain?: Array<{ shape: ShapeCode }> | null,
 ): ShapeChain {
   // W6-3: use the INSTRUMENT'S OWN spot, not a hardcoded DXY spot. Under the
   // old code every EUR (~1.14) / GBP (~1.34) zone was "below spot" by
@@ -2245,16 +3008,52 @@ function buildShapeChain(
 
   const instrumentLabel = instrument ?? 'UNKNOWN';
 
+  // ── W4 — THE CANDLE-SHAPE LEXICON consumes the E2 day classification (the
+  //    operator's "shape chains = semantically intelligent algorithmic
+  //    systems"). The lexicon classifies the day from the ZONE-DERIVED anatomy
+  //    (the bounding zfp gates the ss/bs families — the same data classifyShape
+  //    reads); its intent feeds the day-shape classification's AUDIT + the
+  //    Phase-A unified-macro divergence guard (a day the lexicon says BS while
+  //    the E2 said PBS → the hard violation). The E2's own shape is NOT
+  //    overridden — the golden lane stays byte-identical; the lexicon's read is
+  //    the semantic confirmation + the demand. ──
+  const candleShapeAnatomy: LexiconData = {
+    boundingZoneZfp: nearestSupply?.zfp ?? nearestDemand?.zfp ?? ZFP_DEFAULT,
+    currentShape: currentShape as string,
+    zoneZfp: avgZfp,
+    // the zone-density proxy for the candle-count gates (the honest absence:
+    // no candle data at the E2 boundary → the candle-count predicates stay
+    // off — the ss/bs zfp families carry the read).
+    candleCount: zones.length,
+  };
+  const candleShapeResult = candleShapeLexicon.classify(candleShapeAnatomy);
+  // Phase A — the BS-vs-PBS divergence throw (fires only when the lexicon
+  // classifies BS AND the E2's own read is the piercing PBS — the unified
+  // macro check; the golden lane never hits it).
+  candleShapeLexicon.enforce(candleShapeResult, 'A');
+  // Phase B — the shape demand appended to the day's context (the audit trail).
+  candleShapeLexicon.enforce(candleShapeResult, 'B');
+  const candleShapeNote = candleShapeResult.demand
+    ? ` | ${candleShapeResult.demand}`
+    : '';
+
   // ── E2-5: Virgin MoM Death Zone Detection ──
   // Virgin MoM zones are DEATH ZONES — automatic REJECT, no exceptions.
   // Flag them in the output so Engine 3 knows to avoid them.
-  const momEvaluation = evaluateAllMoMZones(zones);
+  // W5: the phantom-BoM exemption lane — the type-2 virgin MoM (the FORTRESS)
+  // is EXEMPTED (the operator's all-4 predicate, consulted via the SAME
+  // deterministic predicate the reasoning chain's findFortressDemand uses).
+  const shapeBrainPip = PIP_VALUE[instrument ?? 'DXY'] ?? 0.0001;
+  const momEvaluation = evaluateAllMoMZones(zones, shapeBrainPip);
   const deathZoneWarning = momEvaluation.deathZones.length > 0
     ? ` | MOM_DEATH_ZONE: virgin MoM zones [${momEvaluation.deathZones.join(', ')}] — REJECT (no entries)`
     : '';
+  const fortressZoneNote = momEvaluation.fortressZones.length > 0
+    ? ` | PHANTOM_BOM_FORTRESS: type-2 virgin MoM zones [${momEvaluation.fortressZones.join(', ')}] — EXEMPTED (the all-4 predicate — the operator's fortress)`
+    : '';
 
   const currentContext = zones.length > 0 && instrumentSpot
-    ? `${instrumentLabel}: shape=${currentShape}, ZFP avg=${avgZfp.toFixed(0)}%, directional ZFP=${initialDirectionalZfp.toFixed(0)}%, ${zones.length} zones active${deathZoneWarning}`
+    ? `${instrumentLabel}: shape=${currentShape}, ZFP avg=${avgZfp.toFixed(0)}%, directional ZFP=${initialDirectionalZfp.toFixed(0)}%, ${zones.length} zones active${deathZoneWarning}${fortressZoneNote}${candleShapeNote}`
     : `${instrumentLabel}: no zone data — defaulting to SS`;
 
   // ── 3. Chain Extension with zone-anchored context ──
@@ -2294,7 +3093,12 @@ function buildShapeChain(
         : (nearestSupply && nearestDemand
             ? (nearestSupply.zfp >= nearestDemand.zfp ? nearestSupply : nearestDemand)
             : (nearestSupply ?? nearestDemand));
-    const nextShape = predictNextShapePressureAware(prevShape, stepZfp, contestedZone, i);
+    // THE C-3 SHAPE INJECTION: the injected (EU) sequence's i-th shape
+    // OVERRIDES the pair's own transition — the shared waveform. The
+    // confidence/zfp/context still derive from the pair's own zones.
+    const nextShape = injectedChain && injectedChain[i]
+      ? injectedChain[i]!.shape
+      : predictNextShapePressureAware(prevShape, stepZfp, contestedZone, i);
     const dayLabel = `${days[i]} (week)`;
 
     // Build zone-anchored context string with per-step directional ZFP
@@ -2333,6 +3137,19 @@ function buildShapeChain(
           action: 'REJECT',
           probability: '100%',
           warning: 'Virgin MoM zones are death zones — no entries permitted',
+        }]
+      : []),
+    // W5 — the phantom-BoM fortress: the type-2 virgin MoM is a VALID reaction
+    // point (the operator's fortress — "a phantom BoM zone... functions as a
+    // BoM zone"). Exempted from the death rule — surfaced to E3 as EXEMPT.
+    ...(momEvaluation.fortressZones.length > 0
+      ? [{
+          scenario: 'Phantom-BoM Fortress (type-2 virgin MoM)',
+          type: 'phantomBomFortress',
+          zones: momEvaluation.fortressZones,
+          action: 'EXEMPT',
+          probability: '100%',
+          warning: 'Phantom-BoM exemption — the all-4 predicate holds: the zone FUNCTIONS as a BoM (the operator\'s fortress). Not a death zone — valid reaction point.',
         }]
       : []),
   ];
@@ -2384,6 +3201,9 @@ export class ShapeBrain {
   // (report-v452.ts's buildShapeBrain) attaches it to the injected
   // ZoneMapSnapshot under the documented field name `priorStoryline`.
   private injectedPriorWeekStoryline: PriorWeekStoryline | null = null;
+  // THE C-3 FIX (2026-08-11 — Machine C): the injected shape sequence (the
+  // EU's shared waveform for the GU) — see buildShapeChain's injectedChain.
+  private injectedShapeSequence: Array<{ shape: ShapeCode }> | null = null;
 
   /**
    * Inject the zone map for the next computation cycle.
@@ -2439,6 +3259,7 @@ export class ShapeBrain {
       zoneMap.instrument,
       this.injectedLtfZones,
       this.injectedPriorWeekStoryline,
+      this.injectedShapeSequence,
     );
 
     // 3. Update internal state
@@ -2479,5 +3300,12 @@ export class ShapeBrain {
   injectShapeChain(chain: ShapeChain): void {
     this.currentShapeChain = chain;
     log.info(`Injected shape chain: ${chain.currentShape} (${chain.chain.length} days)`);
+  }
+
+  /** THE C-3 FIX — inject the SHAPE SEQUENCE (the EU's shared waveform) —
+   *  the chain's shapes follow the injected sequence; the zone designations
+   *  resolve on the pair's OWN zones (the E3 setups differ per pair). */
+  injectShapeSequence(seq: Array<{ shape: ShapeCode }> | null): void {
+    this.injectedShapeSequence = seq;
   }
 }

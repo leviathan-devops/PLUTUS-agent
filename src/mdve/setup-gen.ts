@@ -1244,10 +1244,10 @@ function generateSourceSetupsImpl(
       notes: `§8.1 structural ${s.kind} battled ${c.day} ${c.session} (${c.anatomies}); ` +
         (entryNote ?? (lmvZone
           ? `v4.5 LMV-REFINED: entry=defendedEdge ${lmvZone.defendedEdge} (§4.2), ` +
-            `SL ${slResult.method} ${slLmvDistPips!.toFixed(1)}p (rung ${slResult.rungId}, ` +
+            `SL ${slResult.method}${slLmvDistPips != null ? ` ${slLmvDistPips.toFixed(1)}p` : ''} (rung ${slResult.rungId}, ` +
             `rxExt ${lmvZone.reactionExtreme}, §3.2); `
           : `SL ${slResult.method} (rung ${slResult.rungId}); `)) +
-        (entryNote ? `SL ${slResult.method} ${slLmvDistPips!.toFixed(1)}p (rung ${slResult.rungId}${lmvZone ? `, rxExt ${lmvZone.reactionExtreme}` : ''}, §3.2); ` : '') +
+        (entryNote ? `SL ${slResult.method}${slLmvDistPips != null ? ` ${slLmvDistPips.toFixed(1)}p` : ''} (rung ${slResult.rungId}${lmvZone ? `, rxExt ${lmvZone.reactionExtreme}` : ''}, §3.2); ` : '') +
         `TP Law-14 rung ${tpResult.rungId}; ` +
         `RRR ${rrr.toFixed(2)} ≥ ${category} floor ${floor}` +
         (repairNote ? ` ${repairNote}` : ''),

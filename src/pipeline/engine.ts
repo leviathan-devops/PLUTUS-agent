@@ -26,6 +26,17 @@ import type { OHLCBar, DXYZone, ZoneMapSnapshot, TradeSetup } from '../types.js'
 import type { LiquidZone } from '../brains/lqz-lobe.js';
 import type { ZoneModel } from '../mdve/types.js';
 import type { OptionsExpiryData } from '../clients/investinglive-client.js';
+// v4.5.4 Phase 7: the STEP A/B tools + the gate tool (the agent-in-the-loop
+// restoration). The context accessor is injected into each factory — NO runtime
+// circular import (the tools import only the PipelineRunContext TYPE).
+import { buildStepATool, type StepADesignation } from './reason-step-a.js';
+import { buildStepBTool, type TokenLedger } from './reason-step-b.js';
+import { buildGateTool } from './gate-tool.js';
+import { assertProjectionContract, type TradeProjection } from '../mdve/reasoning-chain.js';
+// s2.8 RC-1 (the W7 wave — the reasoning-chain wiring completion): the
+// pipeline context's "now" is the locked London pre-market analysis point
+// (the §2.1 anchor — the operator's temporal law), NEVER the Friday close.
+import { getAnalysisPointMs, isAnalysisPointLocked, ANALYSIS_POINT_MS } from '../mdve/temporal.js';
 
 const log = new Logger('Pipeline4Engine');
 const z = tool.schema;
@@ -48,7 +59,11 @@ export function setSdkClient(client: any): void {
 // GLOBAL PIPELINE CONTEXT — shared across tool calls within a single run
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface PipelineRunContext {
+// v4.5.4 Phase 7: the context is EXPORTED so the STEP A/B/gate tool files
+// (reason-step-a.ts · reason-step-b.ts · gate-tool.ts) can type their
+// injected-context APIs against it. The interface itself is extended in place
+// (the spec §7.4 — the stepADesignation + reasoningLedger + projections fields).
+export interface PipelineRunContext {
   weekStart: string;
   temporalAnchor: number;
   // Phase results — each tool stores its output here for the next tool to consume
@@ -85,6 +100,24 @@ interface PipelineRunContext {
   errors: any[];
   startedAt: number;
   setupCounter: number;
+  // v4.5.4 Phase 7 (the spec §2.2/§2.3 + §7.4): the STEP A/B outputs carried
+  // through the chain — stepADesignation (STEP A → the E2's input), the
+  // reasoningLedger (the STEP B machine core), and the projections (STEP B's
+  // output → the E3's input). The gate tool resets the context at the chain's end.
+  stepADesignation: null | StepADesignation[];
+  reasoningLedger: null | TokenLedger;
+  projections: null | TradeProjection[];
+  // s2.8 RC-1 (the W7 wave): the London pre-market analysis point — the
+  // §2.1 anchor ("today" = the locked ANALYSIS_POINT_MS, NEVER the Friday
+  // close). temporalAnchor is the run's "now" (the §2.1 semantics), the
+  // analysisPointMs is the explicit London pre-market point — the same value
+  // (the spec §2.8's context carries both names for the consuming lanes).
+  analysisPointMs: number;
+  // s2.8 RC-6 (the W7 wave — the frozen-snapshot): the "close the charts"
+  // clause. The setups tool sets placed = true AFTER the projections resolve;
+  // any E2 (shapes) / E3 (setups) re-entry throws FROZEN_SNAPSHOT — the
+  // pipeline NEVER recomputes post-order (the operator's workflow).
+  placed: boolean;
 }
 
 let currentRun: PipelineRunContext | null = null;
@@ -92,9 +125,18 @@ let currentRun: PipelineRunContext | null = null;
 function ensureContext(weekStart: string): PipelineRunContext {
   if (!currentRun || currentRun.weekStart !== weekStart) {
     const anchor = buildTemporalAnchor(weekStart);
+    // s2.8 RC-1 (the W7 wave — the harness re-anchor): the run's "now" is the
+    // London pre-market analysis point, NEVER the Friday close (the §2.1
+    // temporal law — the Friday close 1783702800000 leaks the week's answers).
+    // The temporal engine's locked value is authoritative when the pipeline
+    // entry locked it; when UNLOCKED (the diag/legacy paths that never lock)
+    // the ANALYSIS_POINT_MS constant is the anchor — the same inert-when-
+    // unlocked philosophy as gateBars (never a throw in the test paths).
+    const analysisPointMs = isAnalysisPointLocked() ? getAnalysisPointMs() : ANALYSIS_POINT_MS;
     currentRun = {
       weekStart,
-      temporalAnchor: anchor.anchorMs,
+      temporalAnchor: analysisPointMs,
+      analysisPointMs,
       harvestData: null,
       zoneMapSnapshot: null,
       shapeSnapshot: null,
@@ -111,14 +153,77 @@ function ensureContext(weekStart: string): PipelineRunContext {
       errors: [],
       startedAt: Date.now(),
       setupCounter: 0,
+      stepADesignation: null,
+      reasoningLedger: null,
+      projections: null,
+      placed: false,
     };
-    log.info(`Pipeline context initialized: weekStart=${weekStart}, anchor=${new Date(anchor.anchorMs).toISOString()}`);
+    log.info(`Pipeline context initialized: weekStart=${weekStart}, anchor=${new Date(analysisPointMs).toISOString()} (the London pre-market analysis point)`);
   }
   return currentRun;
 }
 
 function resetContext(): void {
   currentRun = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// s2.8 RC-6 (the W7 wave): THE FROZEN-SNAPSHOT ENFORCEMENT (the §2.1 "close
+// the charts" clause — the spec §2.8's assertNotPlaced). Once the setups tool
+// has placed the run (placed = true AFTER the projections resolve), ANY E2
+// (shapes) / E3 (setups) re-entry THROWS FROZEN_SNAPSHOT — the pipeline NEVER
+// recomputes after the placement (the operator's workflow: "the prices action
+// just fills my limit orders and hits TP/SL accordingly").
+// ═══════════════════════════════════════════════════════════════════════════
+function assertNotPlaced(ctx: PipelineRunContext): void {
+  if (ctx.placed) {
+    throw new Error(
+      'FROZEN_SNAPSHOT: the orders are placed — the pipeline does not recompute after the placement (the operator\'s workflow)',
+    );
+  }
+}
+
+/** s2.8 RC-2 (the W7 wave): normalize a STEP A designation day-key
+ *  ('Mon'..'Fri') to the chain's full day name ('Monday'..'Friday') — the
+ *  exact-match pairing for the E2 keyZone override. */
+function normalizeDesignationDay(raw: string): string {
+  const m = raw.trim().toLowerCase();
+  const map: Record<string, string> = {
+    mon: 'Monday', monday: 'Monday',
+    tue: 'Tuesday', tues: 'Tuesday', tuesday: 'Tuesday',
+    wed: 'Wednesday', wednesday: 'Wednesday',
+    thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday', thursday: 'Thursday',
+    fri: 'Friday', friday: 'Friday',
+  };
+  return map[m] ?? raw;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v4.5.4 Phase 7 DIAG HOOK — the diag-step-tools.ts harness (P-1..P-9) seeds
+// the module-level pipeline context with fixture data so the STEP A/B tools'
+// MECHANICAL FIREWALLS can be exercised directly (a fabricated zoneId → BLOCKED
+// · a generic rationale → BLOCKED · a bad projection → WARN + loop continues).
+// TEST-ONLY — the runtime never calls this; the interface stays unexported
+// (the hook is typed structurally via the ensureContext return, so the
+// PipelineRunContext shape remains private per the spec).
+// ═══════════════════════════════════════════════════════════════════════════
+type PipelineRunContextShape = ReturnType<typeof ensureContext>;
+
+/** TEST-ONLY (diag-step-tools.ts): seed the module context for a weekStart.
+ *  Idempotent — the same weekStart returns the same context object. The
+ *  weekStart identity is NEVER overridden by the seed (a mismatch would make
+ *  ensureContext re-create a fresh empty context on the next call). */
+export function __seedPipelineContextForTest(weekStart: string, seed: Partial<PipelineRunContextShape>): PipelineRunContextShape {
+  const ctx = ensureContext(weekStart);
+  const { weekStart: _ws, ...seedFields } = seed;
+  void _ws;
+  Object.assign(ctx, seedFields);
+  return ctx;
+}
+
+/** TEST-ONLY (diag-step-tools.ts): return the current module context, if any. */
+export function __getPipelineContextForTest(): PipelineRunContextShape | null {
+  return currentRun;
 }
 
 function computeZfpFromConfluence(confluence: number): number {
@@ -405,7 +510,7 @@ const plutusPipelineZones = tool({
     'optionsData from Manual Step A is OPTIONAL — if Protocol A declared [NO DATA], pass an empty array. ' +
     'Zone construction then proceeds with structural pillars only (8 of 9 pillars; P3/P8 contribute no options walls). ' +
     'Options walls (CRITICAL ≥ $1.5B notional = +3 confluence, SIGNIFICANT ≥ $0.85B = +2) only exist when Protocol A succeeds. ' +
-    'After this tool returns, you MUST perform Manual Step B: review the zone map TEXTUALLY (no chart).',
+    'After this tool returns, you MUST perform AGENT REASONING STEP A: read the zone map + the pressure states and call plutus-pipeline-reason-step-a with your designation[].',
   args: {
     weekStart: z.string().describe('Same weekStart as harvest.'),
     optionsData: z
@@ -741,7 +846,7 @@ const plutusPipelineZones = tool({
           spots: ctx.harvestData.spots,
           errors: errors.length > 0 ? errors : undefined,
           manualStepB: pushB,
-          nextStep: `MANUAL STEP B: Review the zone map TEXTUALLY (no chart). Count zones above/below spot per pair. Then call plutus-pipeline-shapes. The deterministic candidate ladder (scaffold) is computed — ${totalScaffoldRungs} rungs across pairs. These rungs will be drawn on the charts in Manual Step C and VERIFIED (not invented) in Manual Step D.`,
+          nextStep: `AGENT REASONING STEP A: Read the E1 zone map (zones + pressure states + lexicon classes above). For each pair/day, designate the zone the E2 shape chain will build on — zoneId (a REAL id from the zones output), role, classification, rationale (≥40 chars with a SPECIFIC price reference like 1.14540), pressureRead. Then call plutus-pipeline-reason-step-a with your designation[]. The firewall validates every zoneId against the map + the rationale format — a fabricated zoneId or a generic rationale is BLOCKED. The deterministic candidate ladder (scaffold) is computed — ${totalScaffoldRungs} rungs across pairs. These rungs will be drawn on the charts and VERIFIED (not invented) in the screenshot-verification step.`,
         }, null, 2),
       };
     } catch (e) {
@@ -762,7 +867,7 @@ const plutusPipelineZones = tool({
 const plutusPipelineShapes = tool({
   description:
     'PLUTUS 4.0 Tool 3/5: Compute Engine 2 shape chain (5-day prediction). ' +
-    'After this tool returns, you MUST perform Manual Step C: review the shape chain.',
+    'After this tool returns, you MUST perform AGENT REASONING STEP B: read the shape chain + the machine\'s ledger and call plutus-pipeline-reason-step-b with your decisions[].',
   args: {
     weekStart: z.string().describe('Same weekStart as harvest.'),
     reviewB: z
@@ -778,6 +883,9 @@ const plutusPipelineShapes = tool({
   },
   async execute(args): Promise<ToolResult> {
     const ctx = ensureContext(args.weekStart);
+    // s2.8 RC-6 (the W7 wave): the frozen-snapshot guard — the E2 NEVER
+    // recomputes after the placement (the setups tool set placed = true).
+    assertNotPlaced(ctx);
 
     if (args.reviewB) {
       ctx.manualStepOutputs['B'] = args.reviewB;
@@ -811,7 +919,18 @@ const plutusPipelineShapes = tool({
           spots: { [pair]: ctx.harvestData?.spots?.[pair] ?? 0 },
         };
         const brain = new ShapeBrain();
-        brain.setZoneMap(pairSnapshot);
+        // CME §1.3 T4 / Phase 2 T4 (operator 2026-07-31): "30m is valid for MoM
+        // S/D zones to identify E2 reaction points for SS/R shapes." Deliver the
+        // pair's 30m MoM structure to E2 as the SS/R reaction points via
+        // setZoneMap's ltfZones param (the E2's day-decomposition input — the
+        // SS/R reaction-point consumption: classifyShape / applyZoneShapeExpectation
+        // / buildDayDecomposition; the E3 entry pool is NOT touched — the setups
+        // tool consumes the zone map separately). The pair's converged map
+        // already carries the telescoped MDVE 30m MoM zones (the T6 merge in the
+        // zones tool) + the 30m LQZ rungs (appendTelescopedLqz) — filter by
+        // timeframe. Absent 30m zones → null → byte-identical legacy behavior.
+        const ltfZones30m = (ctx.zonesByPair?.[pair] ?? []).filter((z) => z.timeframe === '30m');
+        brain.setZoneMap(pairSnapshot, ltfZones30m.length > 0 ? ltfZones30m : null);
         const pairShape = await brain.compute();
         if (pairShape) shapeByPair[pair] = pairShape;
       }
@@ -835,6 +954,38 @@ const plutusPipelineShapes = tool({
       }
 
       ctx.shapeSnapshot = snapshot;
+
+      // ── s2.8 RC-2 (the W7 wave): THE STEP A CONSUMER — the designation's
+      //    zoneIds feed the E2 chain's keyZone selection (the E2's contracted
+      //    input). The STEP A tool wrote ctx.stepADesignation; the E2 now OBEYS
+      //    it — the designated zone becomes the day's keyZone (exact-match per
+      //    pair/day, the 2026-07-31 "exact-match authoritative" ruling — the B2
+      //    law: "the shapes tool builds the chain ON the designated zones").
+      //    The override writes the dayDecomposition (the E3's
+      //    selectPairNativeZone authority) + the dayByDay (the STEP B ledger's
+      //    chain read); the machine's own picks stay intact for the days
+      //    WITHOUT a designation. The STEP A firewall already validated the
+      //    zoneId membership — no re-validation here. ──
+      const stepADesignations = ctx.stepADesignation ?? [];
+      if (stepADesignations.length > 0) {
+        for (const pair of pairs) {
+          const chain = shapeByPair[pair]?.shapeChain;
+          if (!chain) continue;
+          for (const d of stepADesignations.filter((dd) => dd.pair === pair)) {
+            const dayKey = normalizeDesignationDay(d.day);
+            const decomp = (chain.dayDecomposition ?? []).find((e) => normalizeDesignationDay(e.day) === dayKey);
+            if (decomp) {
+              decomp.keyZoneId = d.zoneId;
+              decomp.keyZoneType = d.role;
+              if (d.role === 'SUPPLY') decomp.supplyZoneId = d.zoneId;
+              if (d.role === 'DEMAND') decomp.demandZoneId = d.zoneId;
+            }
+            const entry = (chain.dayByDay ?? []).find((e) => normalizeDesignationDay(e.day) === dayKey);
+            if (entry) entry.keyZoneId = d.zoneId;
+            log.info(`shapes STEP A: ${pair} ${dayKey} keyZone = the designated ${d.zoneId} (${d.role}) — the E2 obeys (the B2 law)`);
+          }
+        }
+      }
 
       // Build Manual Step C push
       const pushC = buildManualStepCPush({
@@ -860,7 +1011,7 @@ const plutusPipelineShapes = tool({
             chainLength: shapeByPair[p]?.shapeChain.chain.length ?? 0,
           }])),
           manualStepC: pushC,
-          nextStep: `MANUAL STEP C: Draw the SCAFFOLD RUNGS (from the zones tool output scaffoldLadders — the deterministic candidate ladder) on each pair's 4H TradingView chart as rectangles via the MCP tv-browser tools, then capture each chart with tv_screenshot (it AUTO-SAVES to /tmp/tv-screenshot-*.png — use THAT path). TEMPORAL INTEGRITY (CRITICAL): FIRST navigate each chart so the week of ${args.weekStart} fills the viewport (pan left — the week's Monday-Friday candles must be what you see, NOT the live right-edge price). Drawing AND verdict perception happen against THAT week's candles only. Then call plutus-pipeline-charts with the screenshot paths.`,
+          nextStep: `AGENT REASONING STEP B: The machine's ledger (tokens 1-7 + 9 — the zone identification, the pressure, the liquidity, the break-validation, the strength, the reaction count, the chain position) is computed from THIS shape chain + the E1 zone map. You perform the judgment tokens in your own context: T8 the forward-position (the path from the day's open to the designated zone), T10 the anchor construction (E/SL/TP as checkable numbers), T11 the validation. Then call plutus-pipeline-reason-step-b with your decisions[] — the machine validates (the WARN set W-1..W-7 — a WARN continues the loop, never a hard-kill) and assembles the full TradeProjections.`,
         }, null, 2),
       };
     } catch (e) {
@@ -1099,7 +1250,8 @@ const plutusPipelineSetups = tool({
   description:
     'PLUTUS 4.0 Tool 5/5: Generate visual trade setups from validated zones. ' +
     'Accepts EITHER: (a) zoneAnalysis — your ZONE| lines as raw text (the harness parses them deterministically via the ZIP protocol), OR (b) validatedZones — an array of zone objects. ' +
-    'Produces the final TTE report. FABRICATED DATA IS HARD-BLOCKED.',
+    'Produces the final TTE report. FABRICATED DATA IS HARD-BLOCKED. ' +
+    'After this tool returns, you MUST call plutus-pipeline-gate with weekStart — the W6 golden gate runs the G1-G10 verdicts and resets the pipeline context.',
   args: {
     weekStart: z.string().describe('Same weekStart as harvest.'),
     zoneAnalysis: z.string().optional().describe(
@@ -1132,6 +1284,10 @@ const plutusPipelineSetups = tool({
   },
   async execute(args): Promise<ToolResult> {
     const ctx = ensureContext(args.weekStart);
+    // s2.8 RC-6 (the W7 wave): the frozen-snapshot guard — the E3 NEVER
+    // recomputes after the placement (placed = true set below, after the
+    // projections resolve).
+    assertNotPlaced(ctx);
 
     // ── ZONE| TEXT PARSING (ZIP §6.3 — the harness-parse path) ──
     // The agent produces ZONE| lines as TEXT in its response. The harness parses
@@ -1255,6 +1411,34 @@ const plutusPipelineSetups = tool({
     log.info(`setups START: ${zipVerifiedZones.length} ZIP-verified zones (${agentZones.length} submitted)`);
 
     try {
+      // ── s2.8 RC-3 (the W7 wave): THE STEP B CONSUMER — the setups/E3 path
+      //    resolves the STEP B projections' E/SL/TP anchors (the E3's contracted
+      //    input — the data-dead disconnection closed). The E3-NEVER is honored
+      //    first: every projection must pass assertProjectionContract; a
+      //    violation is recorded (never silently dropped) and the projection is
+      //    EXCLUDED from the anchor injection below. STEP B itself asserted the
+      //    contract before storing — this re-assert is the E3's own boundary
+      //    check (belt-and-suspenders, the honest report). ──
+      const stepBProjections = (ctx.projections ?? []).filter((p) => p && p.E !== undefined);
+      const projectionContractViolations: string[] = [];
+      for (const proj of stepBProjections) {
+        try {
+          assertProjectionContract(proj);
+        } catch (e) {
+          projectionContractViolations.push(`${proj.setupId}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      if (projectionContractViolations.length > 0) {
+        ctx.errors.push({
+          stage: 'plutus-pipeline-setups',
+          pair: 'ALL',
+          severity: 'ERROR',
+          message: `STEP B projections failed the E3-NEVER contract (assertProjectionContract): ${projectionContractViolations.join(' | ')} — the violating projections are excluded from the anchor injection`,
+          context: { violations: projectionContractViolations },
+          timestamp: Date.now(),
+        });
+      }
+
       // Validate Manual Step D output (ZIP-verified zones only — the array-
       // level verifyZone pass above already filtered structural/type/evidence
       // failures; VLM_REJECTED-source zones are excluded here as before).
@@ -1583,6 +1767,38 @@ const plutusPipelineSetups = tool({
           else if (pctChange < -0.5) priorWeekMomentum = 'BEARISH';
         }
 
+        // ── s2.8 RC-3 (the W7 wave): THE PROJECTION ANCHORS FEED THE SETUP
+        //    RESOLUTION — this pair's STEP B projections are injected as
+        //    PROJECTION_ANCHOR candidates (the entry band centered on the
+        //    projection's E). The generator's setup resolution then builds ON
+        //    the STEP B output — the T1 law ("the next tool's arguments MUST
+        //    contain the output of that reasoning"; the context carries the
+        //    projections, the E3 resolves them). Contract-violating projections
+        //    were excluded at the tool-entry check above; non-finite anchors
+        //    are skipped here (never injected). The projection's setupId + the
+        //    E/SL/TP ride the evidence for the honest provenance trace. ──
+        const pairProjections = stepBProjections.filter((p) => p.pair === pair);
+        for (const proj of pairProjections) {
+          if (!Number.isFinite(proj.E) || proj.E <= 0) continue;
+          pairValidated.push({
+            pair,
+            type: proj.direction === 'LONG' ? 'DEMAND' : 'SUPPLY',
+            top: proj.E + pipVal * 3,
+            bottom: proj.E - pipVal * 3,
+            timeframe: '4H',
+            classification: proj.direction === 'LONG' ? 'MoM' : 'MoM',
+            source: 'PROJECTION_ANCHOR',
+            confidence: Math.round(Math.min(100, Math.max(0, (proj.confidence ?? 0.5) * 100))),
+            reactionCount: 0,
+            liquidityScore: 0,
+            visualEvidence: `STEP B projection ${proj.setupId}: E ${proj.E.toFixed(5)} SL ${proj.SL.toFixed(5)} TP ${proj.TP.toFixed(5)}`,
+            sourceScreenshot: pairScreenshot?.path || '',
+          } as any);
+        }
+        if (pairProjections.length > 0) {
+          log.info(`setups STEP B: ${pair} — ${pairProjections.length} STEP B projection anchor(s) consumed (the E3 resolves the STEP B output)`);
+        }
+
         // REAL API: generateSetups takes individual params, NOT a combined object
         // W6-3: pass the pair's OWN shape chain (dedicated data, dedicated chain)
         // plus the injected DXY macro bias for the cascade (Part 6.5). DXY itself
@@ -1670,6 +1886,16 @@ const plutusPipelineSetups = tool({
         }
       }
 
+      // ── s2.8 RC-6 (the W7 wave): THE PLACEMENT — the "close the charts"
+      //    clause. The STEP B projections have RESOLVED into the final setup
+      //    set (the per-pair generation + the mirror merge above). The run is
+      //    now PLACED: any E2 (shapes) / E3 (setups) re-entry throws
+      //    FROZEN_SNAPSHOT via assertNotPlaced — the pipeline NEVER recomputes
+      //    post-order (the operator's workflow: "the prices action just fills
+      //    my limit orders and hits TP/SL accordingly").
+      ctx.placed = true;
+      log.info('setups: the run is PLACED — the pipeline does not recompute post-order (the frozen-snapshot clause)');
+
       // Write report using the NEW clean MD report generator
       let reportPath = '';
       try {
@@ -1708,6 +1934,10 @@ const plutusPipelineSetups = tool({
         durationMs: totalDuration,
         durationMinutes: (totalDuration / 60_000).toFixed(1),
         pipelineVersion: '4.0.0',
+        // v4.5.4 Phase 7: the D5 chain's NEXT — the gate tool is the terminal
+        // tool (it calls resetContext(); setups must NOT reset, or the gate
+        // would lose the projections in the context).
+        nextStep: 'NEXT: call plutus-pipeline-gate with weekStart — the W6 golden gate runs the G1-G10 verdicts and resets the pipeline context.',
         // v4.4 MDVE+mirror stage outcome (null when the stage didn't run —
         // the fail-safe emergent-only path).
         mdve: ctx.mdveStage ? {
@@ -1726,8 +1956,10 @@ const plutusPipelineSetups = tool({
         } : { ran: false },
       };
 
-      resetContext();
-
+      // v4.5.4 Phase 7: the T1 lifecycle reset MOVED to the gate tool — the
+      // terminal tool of the D5 chain (spec §7.4). Setups must NOT reset the
+      // context here: the gate tool reads ctx.projections (the STEP B output)
+      // for the G1-G10 verdicts. A reset here would lose them.
       return {
         title: `Pipeline COMPLETE — ${allSetups.length} setups`,
         output: JSON.stringify(result, null, 2),
@@ -2401,6 +2633,15 @@ const plutusSaveScreenshot = tool({
 // TOOL REGISTRY EXPORT
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// v4.5.4 Phase 7 (the spec §7.4 + §6.5): the STEP A/B + gate tools are built
+// with the context accessor injected (no runtime circular import). The D5
+// chain: harvest → zones → STEP A → shapes → STEP B → setups → gate. The
+// charts/browse/backtest/save tools REMAIN registered (the VLM verification
+// path — "data 80%, vision 20%" Law 37) but are NOT in the mandatory D5 order.
+const plutusPipelineReasonStepA = buildStepATool({ ensureContext, log });
+const plutusPipelineReasonStepB = buildStepBTool({ ensureContext, log });
+const plutusPipelineGate = buildGateTool({ ensureContext, resetContext, log });
+
 export function createPipeline4Tools(): Record<string, ReturnType<typeof tool>> {
   return {
     'plutus-pipeline-harvest': plutusPipelineHarvest,
@@ -2408,6 +2649,31 @@ export function createPipeline4Tools(): Record<string, ReturnType<typeof tool>> 
     'plutus-pipeline-shapes': plutusPipelineShapes,
     'plutus-pipeline-charts': plutusPipelineCharts,
     'plutus-pipeline-setups': plutusPipelineSetups,
+    'plutus-browse-screenshot': plutusBrowseScreenshot,
+    'plutus-backtest-setups': plutusBacktestSetups,
+    'plutus-save-screenshot': plutusSaveScreenshot,
+  };
+}
+
+/**
+ * The v4.5.4 7-tool chain (the D5 order — the spec §2.1 + §7.4):
+ *   harvest → zones → reason-step-a → shapes → reason-step-b → setups → gate
+ * with the retained legacy tools (charts · browse-screenshot · backtest ·
+ * save-screenshot) still registered — the D5 order is the MANDATORY chain;
+ * the retained tools serve the VLM verification path (the spec §6.5).
+ */
+export function createPipeline7Tools(): Record<string, ReturnType<typeof tool>> {
+  return {
+    // THE D5 ORDER (the mandatory chain):
+    'plutus-pipeline-harvest': plutusPipelineHarvest,
+    'plutus-pipeline-zones': plutusPipelineZones,
+    'plutus-pipeline-reason-step-a': plutusPipelineReasonStepA,
+    'plutus-pipeline-shapes': plutusPipelineShapes,
+    'plutus-pipeline-reason-step-b': plutusPipelineReasonStepB,
+    'plutus-pipeline-setups': plutusPipelineSetups,
+    'plutus-pipeline-gate': plutusPipelineGate,
+    // THE RETAINED LEGACY (registered, NOT in the mandatory D5 order):
+    'plutus-pipeline-charts': plutusPipelineCharts,
     'plutus-browse-screenshot': plutusBrowseScreenshot,
     'plutus-backtest-setups': plutusBacktestSetups,
     'plutus-save-screenshot': plutusSaveScreenshot,

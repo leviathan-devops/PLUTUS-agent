@@ -1,0 +1,43 @@
+{
+  "batteryFingerprint": "8acfe74f272bf736de101e297b731cfa97c9fdd4a1684e63363489f116af7b7e",
+  "caseCount": 5,
+  "passed": 5,
+  "overall": "PASS",
+  "cases": [
+    {
+      "id": "mirror-floor-40",
+      "oracle": "mirror_floor",
+      "expect": "CONTRADICTED",
+      "actual": "CONTRADICTED",
+      "pass": true
+    },
+    {
+      "id": "mirror-floor-13",
+      "oracle": "mirror_floor",
+      "expect": "CONTRADICTED",
+      "actual": "CONTRADICTED",
+      "pass": true
+    },
+    {
+      "id": "mirror-floor-24",
+      "oracle": "mirror_floor",
+      "expect": "VALID",
+      "actual": "VALID",
+      "pass": true
+    },
+    {
+      "id": "side-inversion-v452",
+      "oracle": "side_match",
+      "expect": "FIRE",
+      "actual": "FIRE",
+      "pass": true
+    },
+    {
+      "id": "side-inversion-v453",
+      "oracle": "side_match",
+      "expect": "SILENT",
+      "actual": "SILENT",
+      "pass": true
+    }
+  ]
+}

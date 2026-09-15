@@ -152,6 +152,11 @@ export interface ZoneModel {
   /** The LMV rung shielding this zone (S/D zones only — the SHIELD link's
    *  rungId, mirrored for O(1) lookup). */
   shieldZoneId?: string;
+  /** THE C-2 FIX (2026-08-11 — Machine C): the LMV matrix side carried onto
+   *  the bridged zone (BUY_SIDE/SELL_SIDE — the battle vote) so the
+   *  resting-side pass can honor a CONFLICT (the container's type never
+   *  overrides the rung's own vote). Non-LMV zones have no side (undefined). */
+  side?: 'BUY_SIDE' | 'SELL_SIDE';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
