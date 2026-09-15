@@ -453,7 +453,20 @@ export function resolveOperativeZone(
     if (exact) return zoneToOperative(exact);
   }
   const z = model.zones.find((z) => z.id === searchId);
-  if (z) return zoneToOperative(z);
+  // THE G3 ZERO-WIDTH GUARD (W9 — the GU Monday LONG): the blind return below
+  // returned the collapsed LMV|GBP/USD|1.33270 [1.33059-1.33059] BEFORE the
+  // isDegenerateRung path — the ADM got a zero-risk band → RRR_BELOW_FLOOR →
+  // NO LONG lane → G3 0 LONGs. A zero-width / sub-floor band is NEVER
+  // operative — fall through to the lmv.table path (never return it).
+  if (z) {
+    const zpip = z.bottom > 5 ? 0.01 : 0.0001;
+    const zwidthPips = (z.top - z.bottom) / zpip;
+    if (Math.abs(z.top - z.bottom) < 1e-6 || zwidthPips < 0.5) {
+      console.error(`[DBG-G3] degenerate zone ${searchId} pair ${pair} band [${z.bottom}-${z.top}] — fall through to lmv.table`);
+    } else {
+      return zoneToOperative(z);
+    }
+  }
   // The LMV bridge ids: `LMV|pair|center` (types.ts) + `LMV-center` (shape-cascade).
   const rung = model.lmv.table.find(
     (r) => rungIdOf(pair, r.center) === id || `LMV-${r.center.toFixed(5)}` === id,
@@ -468,10 +481,31 @@ export function resolveOperativeZone(
     // band). No valid neighbor → the honest absence (null — the lane falls
     // to the next resolution; never a fabricated level).
     if (isDegenerateRung(rung, pair)) {
+      // THE G3 GEOMETRY-AWARE RUNG PICK (W9): the id-distance sort picked the
+      // nearest id (the GU Monday's 1.33280, 1p away) over the golden band.
+      // Prefer the same-side valid band CONTAINING model.spot (the
+      // Monday-open proxy — the golden 1.33380 [1.33306-1.33343] contains the
+      // open 1.33342), else the nearest by band-center distance to spot.
+      const spot = model.spot;
+      console.error(`[DBG-D1] degenerate rung ${id} pair ${pair} band [${rung.bottom}-${rung.top}] center ${rung.center} side ${rung.side} spot ${spot}`);
+      const pool = model.lmv.table.filter((r2) => r2.side === rung.side && !isDegenerateRung(r2, pair));
+      if (Number.isFinite(spot) && spot > 0) {
+        const containing = pool
+          .filter((r2) => r2.bottom <= spot + 1e-9 && r2.top >= spot - 1e-9)
+          .sort((a, b) => ((a.top - a.bottom) - (b.top - b.bottom)) || (Math.abs((a.top + a.bottom) / 2 - spot) - Math.abs((b.top + b.bottom) / 2 - spot)));
+        if (containing[0]) {
+          console.error(`[DBG-G3] containing pick ${rungIdOf(pair, containing[0]!.center)} [${containing[0]!.bottom}-${containing[0]!.top}] for ${id}`);
+          return rungToOperative(pair, containing[0]!);
+        }
+        const nearest = [...pool].sort((a, b) => Math.abs((a.top + a.bottom) / 2 - spot) - Math.abs((b.top + b.bottom) / 2 - spot))[0];
+        if (nearest) {
+          console.error(`[DBG-G3] nearest-center pick ${rungIdOf(pair, nearest.center)} [${nearest.bottom}-${nearest.top}] for ${id}`);
+          return rungToOperative(pair, nearest);
+        }
+        return null;
+      }
       const idLevel = Number(String(id).split('|')[2]);
-      console.error(`[DBG-D1] degenerate rung ${id} pair ${pair} idLevel ${idLevel} band [${rung.bottom}-${rung.top}] center ${rung.center} side ${rung.side}`);
-      const nearest = model.lmv.table
-        .filter((r2) => r2.side === rung.side && !isDegenerateRung(r2, pair))
+      const nearest = pool
         .sort((a, b) => {
           const da = Math.abs(Number(String(rungIdOf(pair, a.center)).split('|')[2]) - idLevel);
           const db = Math.abs(Number(String(rungIdOf(pair, b.center)).split('|')[2]) - idLevel);
