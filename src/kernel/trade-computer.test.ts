@@ -132,8 +132,17 @@ describe("trade-computer happy path", () => {
       l5Score: 8,
     });
     const rows = journal.query(`trade-computer:EUR/USD:${T0}`);
-    expect(rows.length).toBe(1);
-    expect(rows[0]?.kind).toBe("trade-computer.emit");
+    // SC-16: six leg rows (card→L1→L2→L3→L4→L5) per setup precede the emit row, same causationId.
+    expect(rows.length).toBe(7);
+    expect(rows.map((r) => r.kind)).toEqual([
+      "trade-computer.leg.card",
+      "trade-computer.leg.l1",
+      "trade-computer.leg.l2",
+      "trade-computer.leg.l3",
+      "trade-computer.leg.l4",
+      "trade-computer.leg.l5",
+      "trade-computer.emit",
+    ]);
   });
 
   test("rr exactly at the D-R1 floor emits", () => {
@@ -252,5 +261,77 @@ describe("kernel journal hash chain", () => {
       return JSON.stringify(j.all());
     };
     expect(build()).toBe(build());
+  });
+});
+
+describe("SC-16 leg chain journal rows (card→L1→L2→L3→L4→L5)", () => {
+  const LEG_KINDS = [
+    "trade-computer.leg.card",
+    "trade-computer.leg.l1",
+    "trade-computer.leg.l2",
+    "trade-computer.leg.l3",
+    "trade-computer.leg.l4",
+    "trade-computer.leg.l5",
+  ];
+
+  test("six ordered leg rows per setup queryable by causationId, references resolve, chain intact", () => {
+    const causationId = `sc16-chain:${T0}`;
+    const journal = new KernelJournal();
+    const card = baseCard();
+    const verdicts = baseVerdicts();
+    const projections = computeTrades(card, verdicts, { journal, timestampMs: T0, causationId });
+    expect(projections.length).toBe(1);
+    const rows = journal.query(causationId);
+    expect(rows.map((r) => r.kind)).toEqual([...LEG_KINDS, "trade-computer.emit"]);
+    const zoneIds = (card.zones as Array<{ zoneId: string }>).map((z) => z.zoneId);
+    const designationIds = (card.designations as Array<{ id: string }>).map((d) => d.id);
+    const setupIds = (card.setups as Array<{ id: string }>).map((s) => s.id);
+    const byKind: Record<string, Record<string, unknown>> = Object.fromEntries(
+      rows.map((r) => [r.kind, JSON.parse(r.payload) as Record<string, unknown>]),
+    );
+    const p = projections[0] as NonNullable<(typeof projections)[0]>;
+    expect(byKind["trade-computer.leg.card"]).toMatchObject({
+      setupId: p.provenance.cardSetupId,
+      zoneId: p.provenance.cardZoneId,
+      designationId: p.provenance.cardDesignationId,
+    });
+    expect(byKind["trade-computer.leg.l1"]).toMatchObject({
+      setupId: "EU1",
+      telescopeZoneId: p.provenance.l1TelescopeZoneId,
+    });
+    expect(byKind["trade-computer.leg.l2"]).toMatchObject({
+      setupId: "EU1",
+      pressureZoneId: p.provenance.l2PressureZoneId,
+    });
+    expect(byKind["trade-computer.leg.l3"]).toMatchObject({
+      setupId: "EU1",
+      fibTradeId: p.provenance.l3FibTradeId,
+    });
+    expect(byKind["trade-computer.leg.l4"]).toMatchObject({
+      setupId: "EU1",
+      dxyInverseZoneId: p.provenance.l4DxyInverseZoneId,
+    });
+    expect(byKind["trade-computer.leg.l5"]).toMatchObject({
+      setupId: "EU1",
+      tradeValid: true,
+      score: p.provenance.l5Score,
+    });
+    // Every id reference resolves into the card that produced it.
+    expect(setupIds.includes(byKind["trade-computer.leg.card"]?.setupId as string)).toBe(true);
+    expect(zoneIds.includes(byKind["trade-computer.leg.card"]?.zoneId as string)).toBe(true);
+    expect(designationIds.includes(byKind["trade-computer.leg.card"]?.designationId as string)).toBe(true);
+    expect(zoneIds.includes(byKind["trade-computer.leg.l2"]?.pressureZoneId as string)).toBe(true);
+    expect(setupIds.includes(byKind["trade-computer.leg.l3"]?.fibTradeId as string)).toBe(true);
+    expect(setupIds.includes(byKind["trade-computer.leg.l5"]?.setupId as string)).toBe(true);
+    journal.checkIntegrity();
+  });
+
+  test("no-journal call path returns identical projections (leg rows are observe-only)", () => {
+    const withJournal = new KernelJournal();
+    const causationId = `sc16-observe:${T0}`;
+    const a = computeTrades(baseCard(), baseVerdicts(), { journal: withJournal, timestampMs: T0, causationId });
+    const b = computeTrades(baseCard(), baseVerdicts());
+    expect(JSON.parse(JSON.stringify(a))).toEqual(JSON.parse(JSON.stringify(b)));
+    expect(withJournal.query(causationId).map((r) => r.kind)).toEqual([...LEG_KINDS, "trade-computer.emit"]);
   });
 });

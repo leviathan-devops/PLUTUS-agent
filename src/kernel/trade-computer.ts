@@ -289,6 +289,53 @@ export function computeTrades(
     },
   }));
 
+  // SC-16 leg chain — journal rows OBSERVE the already-computed L1..L5 verdicts (recompute nothing, gate nothing new).
+  // D13: "Doctrine is QUOTED, never synthesized... Anything that can't be quoted doesn't get built" (INJECTOR.md:5)
+  // R3: "E3 is not permitted to override pre-existing E1/E2 data architecture" (MACRO:21)
+  // R29: "NOTHING SHOULD BE PRICE ANCHORED EVER… ZONE ANCHORED" (DEBUG:1231)
+  // R33: "golden tolerance 3 pips after EVERY change — not 30, not 10, THREE" (golden-gate.ts:18-20)
+  // This desk changes no entry/selection/linking/gating/refuse code — journal appends only, observe-only; no gate re-run owed.
+  if (journal !== null && timestampMs !== undefined) {
+    for (const link of links) {
+      journal.append({
+        causationId,
+        kind: "trade-computer.leg.card",
+        payload: { setupId: link.setupId, zoneId: link.zoneId, designationId: link.designationId },
+        timestampMs,
+      });
+      journal.append({
+        causationId,
+        kind: "trade-computer.leg.l1",
+        payload: { setupId: link.setupId, telescopeZoneId: link.l1TelescopeZoneId },
+        timestampMs,
+      });
+      journal.append({
+        causationId,
+        kind: "trade-computer.leg.l2",
+        payload: { setupId: link.setupId, pressureZoneId: link.zoneId },
+        timestampMs,
+      });
+      journal.append({
+        causationId,
+        kind: "trade-computer.leg.l3",
+        payload: { setupId: link.setupId, fibTradeId: link.setupId },
+        timestampMs,
+      });
+      journal.append({
+        causationId,
+        kind: "trade-computer.leg.l4",
+        payload: { setupId: link.setupId, dxyInverseZoneId: link.l4DxyInverseZoneId },
+        timestampMs,
+      });
+      journal.append({
+        causationId,
+        kind: "trade-computer.leg.l5",
+        payload: { setupId: link.setupId, tradeValid: l5.tradeValid, score: l5.score },
+        timestampMs,
+      });
+    }
+  }
+
   if (journal !== null && timestampMs !== undefined) {
     journal.append({
       causationId,
