@@ -136,3 +136,14 @@ The F4 entry's "DXY SHORT flipped HIT→NONE" is **refuted by captures** (`.trid
 **F4C (outcome-window harvest):** fixture extended to the canon span 2026-04-30→2026-07-10T17:00Z, all 12 slots, zero cap gaps; DXY 1H n=1228 / 4H n=428 = the skill's expected ranges exactly. `scripts/fetch-bars.ts --until` parameterization (foundation lock). **Analysis invariance PROVEN** (Monday lines byte-identical, anchor digests unchanged, negative control held — no leak). **G8 FAIL→PASS** (beyond-bars present, non-vacuous). **G-count 8/10** (only pre-existing G1/G4). **OUTCOME resolves**: 0/4 wins (all SL-hit, TRUE count, gate FAIL honestly). A1-A7 7/7. New report baseline `53d7f9d8…` ×2 deterministic.
 
 Not ship. Remaining reds are operator-owned doctrine rulings (2 questions in F4B audit) + SC-25 multi-week measure + product_tui. Goal active.
+
+## 2026-09-15 SC-25 multiweek disposition (orch run, HEAD 44310a6)
+
+**Command:** `bun specs/harness/multiweek.ts` (the W8 sustained-gate harness; SC-25 per its header).
+**Result:** week 2026-07-06 → **15 wins / 0 losses / 15 total** (`MW-ROW|2026-07-06|golden-week.json|15|0|15|15|15|FLOOR_OK|2796ae6cea67b35a`).
+**Gate legs:** ratio OK (15 ≥ 15/21) · per-week floor OK · **coverage FAIL (1 < 2 weeks)** → `SUSTAINED FAIL`.
+**Honest scope:** the comparator is the harness's documented E1-convergence (machine classify + orientation + geometry + RRR floor) — NOT ≤3p level matching; `multiweek.ts:14-16` records the seam ("the runner's projection outputs upgrade the comparator later").
+**Blocker:** the coverage leg needs ≥2 weeks of oracle fixtures; only the golden week exists on disk. Non-golden week oracle rows are operator-owned references (R14 — never fabricated).
+**Disposition:** SC-25 ratio+floor legs PASS on the golden week; multi-week leg data-blocked (operator); named residual stands (`.trident/wave-audit/F4B.md` — the two doctrine questions own SC-21's path).
+
+Not ship. Goal active.

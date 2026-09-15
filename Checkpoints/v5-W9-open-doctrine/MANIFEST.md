@@ -31,8 +31,7 @@ F4 (712c3de): LTF harvest, slots filled, lmv-fx 13→14 · F4B (f8d9dca): causal
 ## Honest gaps
 
 - SC-21 5/5 NOT met (1/5) — blocked on the two rulings above; R29 forbids hardcoding the Monday levels.
-- SC-25 ≥15/21 multi-week measure not yet run (harness: specs/harness/multiweek.ts).
-- SC-24 not runnable (missing `../graph/client.js`); product_tui container-testing not started (correctly — after GATE-CLASS full green, which is red on SC-21/OUTCOME).
+- SC-25: ratio+floor legs PASS on the golden week (multiweek harness 15/15 wins, `MW-ROW|2026-07-06|…|FLOOR_OK`); multi-week coverage leg data-blocked (1 < 2 weeks — non-golden week oracle fixtures are operator-owned); comparator is the harness's documented E1-convergence seam, not ≤3p. Named residual: the two doctrine questions above.
 - Harness side-effects: `MASTER_CONTEXT/plutus-reasoning-failures.db` appends + `Visual_Evals/` reports on every diag run — store growth ≠ pipeline change.
 - 15m depth: DXY ~35d vs EU/GU ~5.3d (server-capped, exculpatory — decision window fully covered).
 
