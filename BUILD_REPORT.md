@@ -19,3 +19,18 @@
 **Commits:** ee32611 + f775d10 tsc-fix  
 **Verification:** bun test src/e1 199/0; FUTURE_BAR_LEAK token; src/e1 tsc errors 0. Frozen MATCH.  
 **Residual:** GATE-W3 blocked on src/runtime tsc (118). W3 not dispatched.
+
+## 2026-09-15 W3–W8 landed (not ship)
+
+**HEAD now:** 7a13674 omp-worker-1. Checkpoint on disk: `Checkpoints/v5-W8-landed-open-gates` only. Named v5-W0..W6 tokens were never minted.
+**What landed:** src/e1 29 ts, e2 29, card 6, visual 7, aether 2, kernel 21, jesl 8, substrate 140, runtime 10, enforcement 4, mdve 36. Total src .ts = 419.
+**Verification (orchestrator this turn):** `bun run typecheck` tsc --noEmit empty; `bun test` 1220 pass / 0 fail / 86 files; frozen MATCH 91294083 / 33914c89.
+**Residual:** BUILD_REPORT was stale at W2 until this entry. Suite green is not GATE-CLASS green.
+
+## 2026-09-15 W9 blocked — no v5-W9-converge
+
+**Command:** `python3 scripts/rebuild-fixture.py --verify` PASS with 6 GAP slots; `bun diag-reasoning-chain-golden.ts --day=2026-07-06` exit 1.
+**Golden:** 2/5 ≤3p — DXY LONG HIT Δ2.7p; GBP/USD LONG HIT Δ1.3p; DXY SHORT Δ20.4p MISS; EUR/USD SHORT NONE; EUR/USD LONG Δ7.9p MISS (1.14189 vs 1.14110).
+**G FAIL:** G1 phantom-BoM fortress token; G3 GU divergence-record; G4 EU/DXY element oppose; G8 temporal vacuous.
+**Why no nested LQZ:** all 30m/15m n=0 in /tmp/opencode/bars_raw.json. R21 forbids 1H→30m aggregate. R29 forbids hardcoding 1.14110. Air_Agent week 2026-07-06 has only 1H CSVs.
+**Ship bar:** NOT MET. Do not stamp COMPLETE. Nested plutus/main and grok-prototype untouched.
