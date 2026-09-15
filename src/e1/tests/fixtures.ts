@@ -116,7 +116,7 @@ export function defendFixture(): LexiconData {
   return makeData({
     bars: [
       { t: 1000, O: 1.14200, H: 1.14250, L: 1.14150, C: 1.14200 }, // pre — above the zone, not touching
-      { t: 2000, O: 1.14110, H: 1.14160, L: 1.14010, C: 1.14140 }, // touch — the body defends (bullish against the fromAbove)
+      { t: 2000, O: 1.09110, H: 1.09160, L: 1.09010, C: 1.09140 }, // touch — the body defends (bullish against the fromAbove)
       { t: 3000, O: 1.14130, H: 1.14230, L: 1.14160, C: 1.14210 }, // next bar — turned up 0.0008 >= 0.0003, not touching
     ],
     zones: [PRESSURE_ZONE],
