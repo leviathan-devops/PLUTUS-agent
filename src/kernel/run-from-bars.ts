@@ -100,22 +100,69 @@ function envelopeZones(bars: OHLCBar[], pair: PairKey, tf: "1H" | "4H", pip: num
   ];
 }
 
+function fibAccepts(supply: ZoneModel, demand: ZoneModel, pip: number): boolean {
+  try {
+    const v = computeFib({
+      swings: [{ swingZoneId: supply.id, loEdge: supply.bottom, hiEdge: supply.top }],
+      trades: [{ tradeId: "pick", entryZoneId: supply.id, targetZoneId: demand.id, direction: "SHORT" }],
+      bands: {
+        [supply.id]: { lo: supply.bottom, hi: supply.top },
+        [demand.id]: { lo: demand.bottom, hi: demand.top },
+      },
+      pip,
+      tolerancePips: 3,
+    });
+    const c = v.tradeChecks[0];
+    return c !== undefined && c.entryOk === true && c.targetOk === true;
+  } catch {
+    return false;
+  }
+}
+
 function pickOriented(
   zones: ZoneModel[],
+  pip: number,
 ): { supply: ZoneModel; demand: ZoneModel; deep: ZoneModel; projectedOpen: number } {
-  const envFirst = (a: ZoneModel, b: ZoneModel) => Number(b.id.includes("|ENV|")) - Number(a.id.includes("|ENV|"));
-  const supplies = zones.filter((z) => z.type === "SUPPLY").sort(envFirst);
-  const demands = zones.filter((z) => z.type === "DEMAND").sort(envFirst);
-  for (const supply of supplies) {
-    for (const demand of demands) {
-      if (demand.top < supply.bottom) {
-        const projectedOpen = (demand.top + supply.bottom) / 2;
-        const deep = demands.find((d) => d.id !== demand.id && d.top < projectedOpen) ?? demand;
-        return { supply, demand, deep, projectedOpen };
+  const isEnv = (z: ZoneModel) => z.id.includes("|ENV|");
+  const obcvFirst = (a: ZoneModel, b: ZoneModel) => Number(isEnv(a)) - Number(isEnv(b));
+  const rrOf = (supply: ZoneModel, demand: ZoneModel) => {
+    const stop = Math.max((supply.top - supply.bottom) / pip, 4);
+    return Math.abs(supply.bottom - demand.top) / pip / stop;
+  };
+  const bestIn = (supplies: ZoneModel[], demands: ZoneModel[]) => {
+    let best: { supply: ZoneModel; demand: ZoneModel; rr: number } | null = null;
+    for (const supply of supplies) {
+      for (const demand of demands) {
+        if (!(demand.top < supply.bottom)) continue;
+        const rr = rrOf(supply, demand);
+        if (!Number.isFinite(rr) || rr < RRR_FLOOR) continue;
+        if (!fibAccepts(supply, demand, pip)) continue;
+        if (best === null || rr > best.rr) best = { supply, demand, rr };
       }
     }
-  }
-  throw new V5PathError(`no S/D pair with demand.top < supply.bottom (S=${supplies.length} D=${demands.length})`);
+    return best;
+  };
+  const max = (a: { supply: ZoneModel; demand: ZoneModel; rr: number } | null, b: { supply: ZoneModel; demand: ZoneModel; rr: number } | null) =>
+    a !== null && b !== null ? (a.rr >= b.rr ? a : b) : (a ?? b);
+  const finish = (supply: ZoneModel, demand: ZoneModel) => {
+    const projectedOpen = (demand.top + supply.bottom) / 2;
+    const orderedDemands = zones.filter((z) => z.type === "DEMAND").sort(obcvFirst);
+    const deep = orderedDemands.find((d) => d.id !== demand.id && d.top < projectedOpen) ?? demand;
+    return { supply, demand, deep, projectedOpen };
+  };
+  const sup = (pred: (z: ZoneModel) => boolean) => zones.filter((z) => z.type === "SUPPLY" && pred(z));
+  const dem = (pred: (z: ZoneModel) => boolean) => zones.filter((z) => z.type === "DEMAND" && pred(z));
+  const nonEnv = (z: ZoneModel) => !isEnv(z);
+  // Phase 1: pure OBCV lexicon on both sides.
+  let hit = bestIn(sup(nonEnv), dem(nonEnv));
+  // Phase 2: mixed — exactly one envelope side (lexicon target preferred).
+  if (!hit) hit = max(bestIn(sup(isEnv), dem(nonEnv)), bestIn(sup(nonEnv), dem(isEnv)));
+  // Phase 3 (last resort): any pair incl. pure envelope.
+  if (!hit) hit = bestIn(sup(() => true), dem(() => true));
+  if (hit) return finish(hit.supply, hit.demand);
+  const s = sup(() => true).length;
+  const d = dem(() => true).length;
+  throw new V5PathError(`no S/D pair clearing RR ${RRR_FLOOR} + L3 fib (S=${s} D=${d})`);
 }
 
 export function rrFromZones(supply: ZoneModel, demand: ZoneModel, pip: number): number {
@@ -174,7 +221,7 @@ export function runV5FromBarsRaw(barsPath = BARS_RAW): V5RunResult {
 
   for (const pair of PAIRS) {
     const ctx = pairZones.get(pair)!;
-    const picked = pickOriented(ctx.zones);
+    const picked = pickOriented(ctx.zones, ctx.pip);
     const snapshot = [picked.supply, picked.demand, picked.deep].map((z) => ({
       id: z.id,
       top: z.top,

@@ -17,8 +17,9 @@
 //
 // D13: oracle rows are MEASUREMENT targets. The machine input built by
 // buildRowEvidence carries numeric geometry + bars ONLY — no oracle-metadata
-// keys (rrr/shape/day/n). The comparator (win counting) is the sole consumer
-// of row.rrr. Proven by multiweek.test.ts case 4.
+// keys (rrr/shape/day/n/dir). Zone type is derived from synth bar OHLC, not
+// row.dir. The comparator (win counting) is the sole consumer of row.dir/rrr.
+// Proven by multiweek.test.ts D13 cases.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -209,7 +210,6 @@ export function buildRowEvidence(
   if (spec === undefined) {
     throw new MultiweekError("MW_UNKNOWN_PAIR", null, `pair '${pair}' has no market spec (known: ${Object.keys(PAIR_SPECS).join(",")})`);
   }
-  const short = row.dir === "Short";
   const bars = synthBars(9000 + idx, 8, anchorMs - 8 * 3600_000, 3600_000, spec.spot, 0, spec.pip * 3).filter(
     (b) => b.t <= anchorMs,
   );
@@ -219,11 +219,13 @@ export function buildRowEvidence(
   const hi = Math.max(...bars.map((b) => b.H));
   const lo = Math.min(...bars.map((b) => b.L));
   const mid = (hi + lo) / 2;
+  const last = bars[bars.length - 1]!;
+  const fromBarsSupply = last.C <= last.O;
   const zone: ZoneModel = {
     id: `MW-${idx}`,
-    type: short ? "SUPPLY" : "DEMAND",
-    top: short ? hi : mid,
-    bottom: short ? mid : lo,
+    type: fromBarsSupply ? "SUPPLY" : "DEMAND",
+    top: fromBarsSupply ? hi : mid,
+    bottom: fromBarsSupply ? mid : lo,
     classification: "BoM",
     formationMs: anchorMs - 3 * 86400_000,
     originIdx: 0,

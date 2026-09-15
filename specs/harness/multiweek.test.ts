@@ -101,6 +101,19 @@ describe("multiweek harness: D13 oracle isolation", () => {
     expect(data.zones[0]!.bottom).not.toBe(row.sl);
     expect(canonicalSerialize(data).includes("1.14395")).toBe(false);
   });
+  test("zone type comes from synth bars, not row.dir — orientationOk can fail", () => {
+    const short = { n: 1, day: "Mon", dir: "Short" as const, e: 1.14, sl: 1.15, tp: 1.13, rrr: 3 };
+    const long = { ...short, dir: "Long" as const };
+    const a = buildRowEvidence(short, "EUR/USD", ANCHOR, 0, "2026-07-06");
+    const b = buildRowEvidence(long, "EUR/USD", ANCHOR, 0, "2026-07-06");
+    expect(a.zone.type).toBe(b.zone.type);
+    const cShort = isRowConverged(short, "EUR/USD", ANCHOR, 0, "2026-07-06");
+    const cLong = isRowConverged(long, "EUR/USD", ANCHOR, 0, "2026-07-06");
+    const shortOri = cShort.reasons.some((r) => r.includes("orientation"));
+    const longOri = cLong.reasons.some((r) => r.includes("orientation"));
+    expect(shortOri === longOri).toBe(false);
+    expect(cShort.win && cLong.win).toBe(false);
+  });
   test("EU#8 inversion is detected mechanically (divergent=true, oracle rrr used)", () => {
     const eu8 = { n: 8, day: "Fri", dir: "Short", e: 1.14555, sl: 1.1454, tp: 1.14165, rrr: 4.59 };
     const c = isRowConverged(eu8, "EUR/USD", ANCHOR, 7, "2026-07-06");

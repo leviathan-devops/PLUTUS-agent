@@ -1,13 +1,15 @@
 // Plutus V5 W2 — src/e1/run-fixture.ts
 // The SC-3 artifact: runs the E1 pipeline (adapter -> OBCV -> machines ->
 // journal) over bars data and journals a ZoneMapSnapshot + LexiconVerdicts.
-// Bars source: bars_raw.json is ABSENT (project + /tmp/opencode globbed at
-// build time — no match), so deterministic synthetic bars from mulberry32
-// (SYNTH_SEED, recorded in the artifact) shaped to exercise the golden zones.
+// Bars source: /tmp/opencode/bars_raw.json is PRESENT (1H feeds for
+// DXY/EUR-USD/GBP-USD) — decoded via decodeMarketData with the ANCHOR
+// temporal gate (future bars throw, never filter). Deterministic synthetic
+// bars from mulberry32 (SYNTH_SEED, recorded in the artifact) are FALLBACK
+// ONLY when the file or a 1H feed is missing.
 // Substitution recorded honestly in the snapshot's `barsSource` field.
-// SEAMS: MarketDataAdapterDouble (helpers.adaptBarsOrThrow) + ObcvDouble
-// (helpers.detectZonesObcv) stand in for sibling w2-e1-actors-adapters'
-// src/e1/adapters/* (absent at build start) — swap on landing.
+// SEAMS: the shipped src/e1/adapters/* (decodeMarketData + OBCVEngine) —
+// landed, no doubles. 30m/15m feeds are GAP (empty on disk); never aggregate
+// 1H→4H or 1H→30m (forged closes).
 // Journal: the runtime src/jesl Journal (importable — used directly).
 // run: bun src/e1/run-fixture.ts [--out specs/e1-snapshot.json]
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -82,8 +84,13 @@ function sculptStructures(bars: OHLCBar[], cfg: (typeof PAIR_CFG)[string]): void
 }
 
 async function main(): Promise<void> {
-  const outArg = process.argv.find((a) => a.startsWith('--out='));
-  const outPath = outArg ? outArg.slice('--out='.length) : join(process.cwd(), 'specs', 'e1-snapshot.json');
+  const eqArg = process.argv.find((a) => a.startsWith('--out='));
+  const spIdx = process.argv.findIndex((a) => a === '--out');
+  const outPath = eqArg
+    ? eqArg.slice('--out='.length)
+    : spIdx >= 0 && process.argv[spIdx + 1]
+      ? process.argv[spIdx + 1]!
+      : join(process.cwd(), 'specs', 'e1-snapshot.json');
   const journal = new Journal();
   const run = runIdFor(sha256Hash(canonicalSerialize({ anchor: ANCHOR, seed: SYNTH_SEED })), 'e1-golden-week');
 

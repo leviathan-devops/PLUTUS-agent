@@ -23,12 +23,12 @@ WAVES: 4
 ## WAVE 2 — Card Generator + Kernel in parallel (W1–W6)
 - plans: E1 src/e1/** · E2 src/e2/** · card src/card/** · kernel src/kernel/** · substrate already present
 - disjoint write-sets; cap 4 product-file writers; min 5 desks (snipers extra)
-- GATE: PASS batteries e1=195 e2=138 card=25 kernel=103; e1 fixture on shipped adapter; e2/card/kernel idle (already green)
+- GATE: PASS batteries e1=197 e2=139 card=25 kernel=110 (this cycle); 5 desks (e1 writer, kernel writer, e2 sniper, card sniper, ripwire/OCR sniper); pickOriented OBCV-first envelope last-resort; e2/card wrote=no (green)
 - OCR: per-plan after audit, delegate; workflow if >=6 files in that plan's diff
 
 ## WAVE 3 — converge + review fusion (W7–W8 wiring)
 - files: report-v452.ts rewrite-as-JESL-graph ONLY if write-set disjoint from frozen pair; golden-gate stays measurement
-- GATE: PASS 5/5 ≤3p on real bars (G1 EU LONG Δ1.5p); G1/G4 fortress residuals FAIL documented; report sha ×2 + D13 mutate-oracle identical
+- GATE: PASS 5/5 ≤3p on real bars (G1 EU LONG Δ1.5p); G1/G4 fortress residuals FAIL documented; report sha 9689cd8a ×2 + D13 mutate-oracle identical; OCR grok-delta 12 reviewed 0 crit; 1 high multiweek.ts dir-tautology FIXED this cycle
 - OCR: /workflow open-code-review args from=plutus/main to=HEAD repo=$PWD
 - ripwire --test-gate --quality-delta vs plutus/main
 - NOT /goal complete
