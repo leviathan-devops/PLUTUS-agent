@@ -7,10 +7,17 @@ import {
   freshDesignation,
   type DesignationEmission,
 } from "../machines/designation-machine.ts";
-import { DAYS, DIRECTIONS, PAIRS, buildSnapshot, designatePair, loadGoldenWeek } from "./support";
+import { DAYS, DIRECTIONS, PAIRS, TEST_SPOT, buildSnapshot, designatePair, loadGoldenWeek } from "./support";
 
 describe("designation totality — 30 pairs / 60 zone IDs, zero INCOMPLETE", () => {
   const gw = loadGoldenWeek();
+
+  test("buildSnapshot geometry is TEST_SPOT, not golden-week oracle e", () => {
+    const euOracle = gw.oracle.eurusd.rows[0]?.e;
+    const snap = buildSnapshot("EUR/USD", "Mon", gw, "SHORT");
+    expect(snap.projectedOpen).toBe(TEST_SPOT["EUR/USD"]);
+    expect(snap.projectedOpen).not.toBe(euOracle);
+  });
 
   test("golden week yields exactly 30 designation pairs, all DESIGNATED", () => {
     let count = 0;

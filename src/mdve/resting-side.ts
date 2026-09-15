@@ -75,20 +75,11 @@ export function classifyRungsByStructure(zones: ZoneModel[]): void {
         }
       }
     }
-    // THE C-2 FIX (2026-08-11 — Machine C): the container's type must NOT
-    // override the rung's OWN battle vote when they CONFLICT. The operator's
-    // golden EU SHORT entry 1.14390 = the SELL_SIDE rung [1.1439-1.14415]
-    // (the sellers defend the highs — the supply the operator SHORTS at:
-    // "LQZ at 1.1444-1.14395 ~ using this as the entry zone anchor — the
-    // entry = the LQZ's near edge"). The pass reclassified it DEMAND (fully
-    // inside the DEMAND container [1.14272-1.14434]) → the E2's supplyCands
-    // EXCLUDED the operator's structure → the E2 designated the VIOLATED
-    // sliver 1.14245 → the golden gate Δ14.2p MISS. The vote-derived type
-    // (SELL_SIDE → SUPPLY) is the battle behavior — the operator's read.
-    // The container's type reinforces an AGREEMENT (same side — the rung IS
-    // the container's liquidity) but never reverses a CONFLICT (the rung at
-    // the container's ceiling is the OPPOSING side's defended level — the
-    // operator's short at the demand's ceiling).
-    if (best) r.type = best.type; // the structural resting side — the narrowest container
+    // Structure law (header): the narrowest containing S/D zone owns type.
+    // WAVE 4 OCR proposed C-2 (keep vote type on conflict). Agreement-only
+    // assign dropped Monday golden 5/5 → 4/5 and outcome 4/4 → 2/5 on real
+    // bars (diag-reasoning-chain-golden --day=2026-07-06). SC-5 is the ship
+    // bar — overwrite stays. Battle vote remains on LqzMatrixEntry.side.
+    if (best) r.type = best.type;
   }
 }

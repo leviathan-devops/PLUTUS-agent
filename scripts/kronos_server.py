@@ -155,13 +155,14 @@ class Handler(BaseHTTPRequestHandler):
 
         df = pd.DataFrame(ohlc, columns=["ts", "open", "high", "low", "close", "volume"])
 
-        # Timestamps
+        # Timestamps — refuse wall-clock fallback (AP-5 / no Date.now in decisions).
         if df["ts"].iloc[-1] == 0 or df["ts"].isna().all():
-            x_ts = pd.Series(pd.date_range(end=pd.Timestamp.now(), periods=len(df), freq="1h"))
-        else:
-            x_ts = pd.Series(pd.to_datetime(df["ts"], unit="ms", errors="coerce"))
-            if x_ts.isna().all():
-                x_ts = pd.Series(pd.date_range(end=pd.Timestamp.now(), periods=len(df), freq="1h"))
+            self._json(400, {"error": "ohlc timestamps required; wall-clock fallback refused"})
+            return
+        x_ts = pd.Series(pd.to_datetime(df["ts"], unit="ms", errors="coerce"))
+        if x_ts.isna().all():
+            self._json(400, {"error": "ohlc timestamps unparseable; wall-clock fallback refused"})
+            return
 
         input_df = df[["open", "high", "low", "close", "volume"]].copy()
         input_df.index = x_ts

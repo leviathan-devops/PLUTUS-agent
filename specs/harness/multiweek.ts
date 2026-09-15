@@ -110,10 +110,10 @@ const FIXTURE_KEY_TO_PAIR: Record<string, string> = {
   dxy: "DXY",
 };
 
-const PAIR_SPECS: Record<string, { pip: number; atr14: number }> = {
-  "EUR/USD": { pip: 0.0001, atr14: 0.0006 },
-  "GBP/USD": { pip: 0.0001, atr14: 0.0008 },
-  DXY: { pip: 0.01, atr14: 0.08 },
+const PAIR_SPECS: Record<string, { pip: number; atr14: number; spot: number }> = {
+  "EUR/USD": { pip: 0.0001, atr14: 0.0006, spot: 1.14 },
+  "GBP/USD": { pip: 0.0001, atr14: 0.0008, spot: 1.33 },
+  DXY: { pip: 0.01, atr14: 0.08, spot: 101.0 },
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -210,11 +210,20 @@ export function buildRowEvidence(
     throw new MultiweekError("MW_UNKNOWN_PAIR", null, `pair '${pair}' has no market spec (known: ${Object.keys(PAIR_SPECS).join(",")})`);
   }
   const short = row.dir === "Short";
+  const bars = synthBars(9000 + idx, 8, anchorMs - 8 * 3600_000, 3600_000, spec.spot, 0, spec.pip * 3).filter(
+    (b) => b.t <= anchorMs,
+  );
+  if (bars.length === 0) {
+    throw new MultiweekError("MW_ROW_MALFORMED", null, `synthetic bars empty for ${pair}#${row.n} — seed/pipeline failure`);
+  }
+  const hi = Math.max(...bars.map((b) => b.H));
+  const lo = Math.min(...bars.map((b) => b.L));
+  const mid = (hi + lo) / 2;
   const zone: ZoneModel = {
     id: `MW-${idx}`,
     type: short ? "SUPPLY" : "DEMAND",
-    top: short ? row.sl : row.e,
-    bottom: short ? row.e : row.sl,
+    top: short ? hi : mid,
+    bottom: short ? mid : lo,
     classification: "BoM",
     formationMs: anchorMs - 3 * 86400_000,
     originIdx: 0,
@@ -226,12 +235,6 @@ export function buildRowEvidence(
     pressure: "VIRGIN",
     reactionCount: 0,
   };
-  const bars = synthBars(9000 + idx, 8, anchorMs - 8 * 3600_000, 3600_000, row.e, 0, spec.pip * 3).filter(
-    (b) => b.t <= anchorMs,
-  );
-  if (bars.length === 0) {
-    throw new MultiweekError("MW_ROW_MALFORMED", null, `synthetic bars empty for ${pair}#${row.n} — seed/pipeline failure`);
-  }
   const data = makeLexiconData({
     bars,
     zones: [zone],
@@ -240,7 +243,7 @@ export function buildRowEvidence(
       week,
       tf: "1H",
       anchorMs,
-      spot: row.e,
+      spot: spec.spot,
       candidateZoneId: zone.id,
       atr14: spec.atr14,
       pip: spec.pip,
@@ -280,7 +283,7 @@ export function isRowConverged(
   const short = row.dir === "Short";
   const orientationOk = zone.type === (short ? "SUPPLY" : "DEMAND");
   if (!orientationOk) reasons.push(`orientation breach: zone ${zone.type} vs dir ${row.dir}`);
-  const divergent = zone.top < zone.bottom;
+  const divergent = short ? row.sl < row.e : row.sl > row.e;
   let geometryOk = true;
   let rrrEffective: number;
   if (divergent) {

@@ -97,6 +97,9 @@ describe("multiweek harness: D13 oracle isolation", () => {
     }
     expect(data.bars.length).toBeGreaterThan(0);
     expect(data.zones.length).toBe(1);
+    expect(data.zones[0]!.top).not.toBe(row.e);
+    expect(data.zones[0]!.bottom).not.toBe(row.sl);
+    expect(canonicalSerialize(data).includes("1.14395")).toBe(false);
   });
   test("EU#8 inversion is detected mechanically (divergent=true, oracle rrr used)", () => {
     const eu8 = { n: 8, day: "Fri", dir: "Short", e: 1.14555, sl: 1.1454, tp: 1.14165, rrr: 4.59 };

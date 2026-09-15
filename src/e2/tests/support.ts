@@ -49,14 +49,15 @@ export function dayMs(anchorMs: number, day: string): number {
   return anchorMs - (DAYS.length - 1 - idx) * DAY_MS;
 }
 
-function oracleBase(pair: PairKey, day: string, gw: GoldenWeek): number {
-  const rows =
-    pair === "EUR/USD" ? gw.oracle.eurusd.rows : pair === "GBP/USD" ? gw.oracle.gbpusd.rows : [];
-  const hit = rows.find((r) => r.day === day);
-  if (hit) return hit.e;
-  const mono = gw.mondayConvergence.set.find((s) => s.pair === pair);
-  if (mono) return mono.level;
-  return pair === "DXY" ? 101.0 : 1.3;
+/** Independent test spots — not golden-week oracle entries (D13). */
+export const TEST_SPOT: Record<PairKey, number> = {
+  DXY: 101.0,
+  "EUR/USD": 1.14,
+  "GBP/USD": 1.33,
+};
+
+function testSpot(pair: PairKey): number {
+  return TEST_SPOT[pair];
 }
 
 export interface PairSnapshot {
@@ -70,7 +71,7 @@ export function buildSnapshot(
   gw: GoldenWeek,
   direction: Direction = "LONG",
 ): PairSnapshot {
-  const base = oracleBase(pair, day, gw);
+  const base = testSpot(pair);
   const spread = pair === "DXY" ? 0.2 : 0.002;
   const t = dayMs(gw.meta.analysisPointMs, day);
   const scope = `${pair}|1H|${t}|${direction}`;
