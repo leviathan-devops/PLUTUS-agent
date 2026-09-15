@@ -75,7 +75,8 @@ import type {
 import { floorSetupsToDedupRows } from './src/pipeline/mdve-stage.js';
 import { PIP_VALUE, ZoneType } from './src/types.js';
 import type { OHLCBar, TradeSetup, ZoneMapSnapshot, DXYZone, DayShapePrediction } from './src/types.js';
-import { writeFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { decodeMarketData } from './src/e1/adapters/market-data-adapter.ts';
 import { pillarEngine } from './src/brains/9-pillar-lobe.js';
 import type { PillarResult } from './src/brains/9-pillar-lobe.js';
 import type { OptionsExpiryData, OptionStrike } from './src/clients/investinglive-client.js';
@@ -124,6 +125,8 @@ const WEEK = '2026-07-06';
  *  the prior window, NEVER the current week's bars). */
 const WEEK_START_MS = Date.UTC(2026, 6, 6); // 2026-07-06T00:00:00Z
 const FIXTURE = process.env.BARS_FIXTURE ?? ['/tmp', 'opencode', 'bars_raw.json'].join('/');
+/** Outcome/simBars only — never a decision input. */
+const WEEK_FIXTURE = process.env.BARS_WEEK_FIXTURE ?? ['/tmp', 'opencode', 'bars_raw.week.json'].join('/');
 const REPORT_PATH = 'report_v452.md'; // relative — SF-AST: no absolute paths
 /** Wave A1.1: the parallel agent's parsed options walls (the operator's
  *  JUL-6 image). ABSENT → the honest [NO DATA] fallback (ZR-7A: P8's
@@ -375,6 +378,16 @@ function loadFixture(): {
   barsByTf: Record<string, Record<string, OHLCBar[]>>;
 } {
   const raw: RawFeed[] = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+  // FutureBarLeak at the decision entry — named live file must be clipped.
+  for (const f of raw) {
+    if (f.timeframe === '1H' || f.timeframe === '4H') {
+      decodeMarketData(f.bars, ANCHOR_MS);
+    }
+  }
+  if (!existsSync(WEEK_FIXTURE)) {
+    throw new Error(`outcome week fixture missing: ${WEEK_FIXTURE} — rebuild with --until=week`);
+  }
+  const weekRaw: RawFeed[] = JSON.parse(readFileSync(WEEK_FIXTURE, 'utf8'));
   const barsFor = (pair: string, tf: string): OHLCBar[] =>
     gateBars(
       (raw.find((r) => r.pair === pair && r.timeframe === tf)?.bars ?? [])
@@ -382,7 +395,7 @@ function loadFixture(): {
     )
       .sort((a, b) => a.timestamp - b.timestamp);
   const simBarsFor = (pair: string): OHLCBar[] =>
-    (raw.find((r) => r.pair === pair && r.timeframe === '1H')?.bars ?? [])
+    (weekRaw.find((r) => r.pair === pair && r.timeframe === '1H')?.bars ?? [])
       .sort((a, b) => a.timestamp - b.timestamp);
   const spotFor = (pair: string): number => {
     // THE ANALYSIS-POINT SPOT (the §2.1 semantic — the W1 fix): the last 1H

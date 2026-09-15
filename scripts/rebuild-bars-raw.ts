@@ -9,14 +9,14 @@
  * --until=decision (default): every written bar.timestamp <= ANALYSIS_POINT_MS.
  * --until=week: clip at WEEK_CLOSE_MS for outcome sim / G8 "fixture beyond anchor".
  * Decision path (gateBars / decodeMarketData) still throws FutureBarLeak on t>anchor.
- * Default --out is /tmp/opencode/bars_raw.json. LIVE golden feed is the week file
- * (SC-5 G8 + outcome). Write a sibling with --until=decision --out=...decision.json
- * to prove the clipped snapshot (max_t === ANALYSIS_POINT_MS).
+ * Named live path /tmp/opencode/bars_raw.json is DECISION-ONLY (clipped).
+ * Week-horizon outcome bars go to /tmp/opencode/bars_raw.week.json.
+ * Refuses --until=week onto the named decision path.
  *
  * Usage:
  *   bun scripts/rebuild-bars-raw.ts
  *   bun scripts/rebuild-bars-raw.ts --until=week
- *   bun scripts/rebuild-bars-raw.ts --until=decision --out=/tmp/opencode/bars_raw.decision.json
+ *   bun scripts/rebuild-bars-raw.ts --until=decision --out=/tmp/opencode/bars_raw.json
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -128,13 +128,24 @@ export function assertClipped(feeds: RawFeed[], untilMs: number): void {
   }
 }
 
-function defaultOut(): string {
-  return join("/tmp", "opencode", "bars_raw.json");
+export const DECISION_BARS_PATH = join("/tmp", "opencode", "bars_raw.json");
+export const WEEK_BARS_PATH = join("/tmp", "opencode", "bars_raw.week.json");
+
+export function outPathForUntil(untilMs: number, explicitOut?: string): string {
+  if (explicitOut) {
+    if (untilMs > ANALYSIS_POINT_MS && explicitOut === DECISION_BARS_PATH) {
+      throw new Error(
+        "refusing --until=week onto named decision path /tmp/opencode/bars_raw.json — use bars_raw.week.json",
+      );
+    }
+    return explicitOut;
+  }
+  return untilMs > ANALYSIS_POINT_MS ? WEEK_BARS_PATH : DECISION_BARS_PATH;
 }
 
-function parseOut(argv: string[]): string {
+function parseOut(argv: string[], untilMs: number): string {
   const flag = argv.find((a) => a.startsWith("--out="));
-  return flag ? flag.slice("--out=".length) : defaultOut();
+  return outPathForUntil(untilMs, flag ? flag.slice("--out=".length) : undefined);
 }
 
 function parseUntil(argv: string[]): number {
@@ -155,8 +166,8 @@ export function writeBarsRaw(outPath: string, feeds: RawFeed[]): void {
 
 if (import.meta.main) {
   const argv = process.argv.slice(2);
-  const out = parseOut(argv);
   const untilMs = parseUntil(argv);
+  const out = parseOut(argv, untilMs);
   const feeds = buildFeeds(untilMs);
   assertNoForgedTf(feeds);
   assertClipped(feeds, untilMs);

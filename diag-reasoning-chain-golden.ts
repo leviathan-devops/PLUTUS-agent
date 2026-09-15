@@ -68,7 +68,8 @@ import {
   WALL_TIME_LIMIT_MS,
   type GoldenGateContext,
 } from './src/pipeline/golden-gate.js';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { decodeMarketData } from './src/e1/adapters/market-data-adapter.ts';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -108,19 +109,33 @@ if (requestedDay !== WEEK) {
 }
 
 interface RawFeed { pair: string; timeframe: string; bars: OHLCBar[]; error: string | null; }
-const raw: RawFeed[] = JSON.parse(readFileSync(join('/tmp', 'opencode', 'bars_raw.json'), 'utf8'));
+const DECISION_PATH = process.env.BARS_FIXTURE ?? join('/tmp', 'opencode', 'bars_raw.json');
+const WEEK_PATH = process.env.BARS_WEEK_FIXTURE ?? join('/tmp', 'opencode', 'bars_raw.week.json');
+const raw: RawFeed[] = JSON.parse(readFileSync(DECISION_PATH, 'utf8'));
+for (const f of raw) {
+  if (f.timeframe === '1H' || f.timeframe === '4H') {
+    decodeMarketData(f.bars, ANCHOR_MS);
+  }
+}
+if (!existsSync(WEEK_PATH)) {
+  throw new Error(`outcome week fixture missing: ${WEEK_PATH} — rebuild with --until=week`);
+}
+const weekRaw: RawFeed[] = JSON.parse(readFileSync(WEEK_PATH, 'utf8'));
 
-// The fixture's max bar timestamp — the G8 evidence (bars beyond the anchor
-// exist) + the negative control's later anchor.
-const fixtureMaxTs = raw.reduce(
+// The week fixture's max bar timestamp — the G8 evidence (bars beyond the
+// anchor exist) + the negative control's later anchor. Decision file is clipped.
+const fixtureMaxTs = weekRaw.reduce(
   (max, f) => Math.max(max, f.bars.reduce((m, b) => Math.max(m, b.timestamp), 0)),
   0,
 );
-const fixtureTotalBars = raw.reduce((n, f) => n + f.bars.length, 0);
+const fixtureTotalBars = weekRaw.reduce((n, f) => n + f.bars.length, 0);
 
 const barsFor = (p: string, tf: string, limitMs: number): OHLCBar[] =>
   (raw.find((r) => r.pair === p && r.timeframe === tf)?.bars ?? [])
     .filter((b) => b.timestamp <= limitMs)
+    .sort((a, b) => a.timestamp - b.timestamp);
+const weekBarsFor = (p: string, tf: string): OHLCBar[] =>
+  (weekRaw.find((r) => r.pair === p && r.timeframe === tf)?.bars ?? [])
     .sort((a, b) => a.timestamp - b.timestamp);
 const spotFor = (p: string, limitMs: number): number => {
   // THE ANALYSIS-POINT SPOT (the §2.1 semantic — the W1 fix): the last 1H
@@ -231,7 +246,8 @@ function buildChainInput(pair: PairKey, limitMs: number = ANCHOR_MS): ReasoningC
     dxySetups: nativeSetups.DXY,
     cascade: { eu: cascade.eu, gu: cascade.gu },
     barsByTf: {
-      '1H': barsFor(pair, '1H', limitMs), '4H': barsFor(pair, '4H', limitMs),
+      '1H': limitMs <= ANCHOR_MS ? barsFor(pair, '1H', limitMs) : weekBarsFor(pair, '1H').filter((b) => b.timestamp <= limitMs),
+      '4H': limitMs <= ANCHOR_MS ? barsFor(pair, '4H', limitMs) : weekBarsFor(pair, '4H').filter((b) => b.timestamp <= limitMs),
       '30m': barsFor(pair, '30m', limitMs), '15m': barsFor(pair, '15m', limitMs),
     },
     macro: macro[pair]!,
@@ -716,9 +732,9 @@ function generateTTEReport(projs: TradeProjection[]): string {
 // simulation against the REAL post-anchor bars (barsFor with NO timestamp cap;
 // the fixture spans 526.75h past the anchor — measured from the data).
 const outcomeBars: Record<PairKey, OHLCBar[]> = {
-  DXY: barsFor('DXY', '1H', Number.MAX_SAFE_INTEGER),
-  'EUR/USD': barsFor('EUR/USD', '1H', Number.MAX_SAFE_INTEGER),
-  'GBP/USD': barsFor('GBP/USD', '1H', Number.MAX_SAFE_INTEGER),
+  DXY: weekBarsFor('DXY', '1H'),
+  'EUR/USD': weekBarsFor('EUR/USD', '1H'),
+  'GBP/USD': weekBarsFor('GBP/USD', '1H'),
 };
 
 const tteReport = generateTTEReport(primaryProjs);

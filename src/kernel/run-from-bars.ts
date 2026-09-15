@@ -58,8 +58,7 @@ function loadFeeds(path = BARS_RAW): RawFeed[] {
 function decisionBars(feeds: RawFeed[], pair: PairKey, tf: "1H" | "4H"): OHLCBar[] {
   const feed = feeds.find((f) => f.pair === pair && f.timeframe === tf);
   if (!feed) throw new V5PathError(`no ${pair} ${tf} feed`);
-  const clipped = feed.bars.filter((b) => b.timestamp <= ANALYSIS_POINT_MS);
-  return decodeMarketData(clipped, ANALYSIS_POINT_MS);
+  return decodeMarketData(feed.bars, ANALYSIS_POINT_MS);
 }
 
 function envelopeZones(bars: OHLCBar[], pair: PairKey, tf: "1H" | "4H", pip: number): ZoneModel[] {

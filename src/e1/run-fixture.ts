@@ -32,8 +32,7 @@ function loadRealBars(pair: PairKey, tf: '1H' | '4H'): OHLCBar[] | null {
   }>;
   const feed = raw.find((f) => f.pair === pair && f.timeframe === tf);
   if (!feed || feed.bars.length === 0) return null;
-  const decision = feed.bars.filter((b) => b.timestamp <= ANCHOR);
-  return decodeMarketData(decision, ANCHOR);
+  return decodeMarketData(feed.bars, ANCHOR);
 }
 
 const ANCHOR = 1783317600000; // spec D.4 ANALYSIS_POINT_MS
