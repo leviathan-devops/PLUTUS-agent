@@ -299,3 +299,48 @@ describe("degrade journal", () => {
     expect(rows[0]?.kind).toBe(AETHER_DEGRADE_JOURNAL_KIND)
   })
 })
+
+/* ── SC-12 junk-fixture cases (append-only; existing cases above untouched) ──
+ * D13: "Doctrine is QUOTED, never synthesized... Anything that can't be quoted doesn't get built" (MASTER_CONTEXT/PLUTUS_MASTER_CONTEXT_INJECTOR.md:5; row R19 at :46 citing Bible4.5:705)
+ * R29: "NOTHING SHOULD BE PRICE ANCHORED EVER. THIS IS THE EXACT HARDCODED DEGENERATE GARBAGE THAT IS FORBIDDEN. NEEDS TO BE ZONE ANCHORED." (specs/mpse/S-1-cascade-law.md:10, anchor PLUTUS_V5_FULL_BUILD_SPEC.md:2002) — no price constants in the new test code below.
+ * R33 (INJECTOR form): "golden tolerance 3 pips after EVERY change — not 30, not 10, THREE" (MASTER_CONTEXT/PLUTUS_MASTER_CONTEXT_INJECTOR.md:5); gate form: "Test against the golden standard at 3 pips after EVERY change — not 30, not 10, THREE" (src/pipeline/golden-gate.ts:18-20) — this desk changes no golden-path code (fixture + tests only), so no gate re-run is owed.
+ * Fixture: specs/fixtures/junk.png — byte-stable corrupt file, ASCII bytes, NOT a valid PNG (BAD_SIGNATURE → CORRUPT_IMAGE refusal).
+ * SC-12: "Chart Verifier returns BINARY PASS/FAIL + context-on-fail (never silent) | unit test with corrupt screenshot → FAIL + context" (MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md:265).
+ */
+describe("SC-12 junk fixture (cardvis lock)", () => {
+  const JUNK_PATH = join(import.meta.dir, "../../specs/fixtures/junk.png")
+  const SC12_MISSING_PATH = join(import.meta.dir, "../../specs/fixtures/does-not-exist-sc12.png")
+
+  test("junk.png → FAIL with CORRUPT_IMAGE + GRADE:FAIL (never silent)", async () => {
+    const outcome = await verifyChartScreenshot({ screenshotPath: JUNK_PATH })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) throw new Error("expected FAIL")
+    expect(outcome.judgment.grade).toBe("FAIL")
+    expect(outcome.judgment.failureContext).toContain("CORRUPT_IMAGE")
+    expect(outcome.judgment.failureContext).not.toBeNull()
+    expect((outcome.judgment.failureContext as string).length).toBeGreaterThan(0)
+    expect(outcome.judgment.judgmentText).toContain("GRADE:FAIL")
+    expect(outcome.error._tag).toBe("CHART_FAIL")
+  })
+
+  test("nonexistent path → FAIL with FILE_MISSING + GRADE:FAIL (never silent)", async () => {
+    const outcome = await verifyChartScreenshot({ screenshotPath: SC12_MISSING_PATH })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) throw new Error("expected FAIL")
+    expect(outcome.judgment.grade).toBe("FAIL")
+    expect(outcome.judgment.failureContext).toContain("FILE_MISSING")
+    expect((outcome.judgment.failureContext as string).length).toBeGreaterThan(0)
+    expect(outcome.judgment.judgmentText).toContain("GRADE:FAIL")
+    expect(outcome.error._tag).toBe("CHART_FAIL")
+  })
+
+  test("junk.png failureContext is non-empty context-on-fail (never silent)", async () => {
+    const outcome = await verifyChartScreenshot({ screenshotPath: JUNK_PATH })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) throw new Error("expected FAIL")
+    expect(outcome.judgment.failureContext).not.toBeNull()
+    expect(typeof outcome.judgment.failureContext).toBe("string")
+    expect((outcome.judgment.failureContext as string).length).toBeGreaterThan(0)
+    expect(outcome.judgment.judgmentText).toContain("GRADE:FAIL")
+  })
+})
