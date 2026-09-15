@@ -1,38 +1,28 @@
-# WAVE 4 audit — request-pull vs plutus/main (cycle-v5-t2)
+# WAVE 4 legal-stop pack (cycle-v5-t2) — current HEAD
 
-Not stamped on jesl / WAVE 1a / WAVE 3 alone. This is the legal-stop pack.
+Do not stamp on jesl / WAVE 1a. Do not merge plutus/main.
 
-## L0
-cwd-check OK · frozen MATCH
-- sl-lmv.ts `912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab`
-- trade-dedup.ts `33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4`
-plutus/main `e99377f` CLEAN (parent worktree `## plutus/main`). Never committed there.
+## Refs
+- Branch `plutus/grok-prototype`
+- HEAD: see `git log -1` on this branch (pressure-actor hyphen fix + prior V5 list)
+- Parent `plutus/main` `e99377f155c357f87c33082ce4efff6a37d5371a` CLEAN
+- Frozen MATCH `912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab` / `33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4`
 
-## Commit
-`52a310d feat(w4): OBCV-first kernel pick, real-bars e1 fixture, multiweek D13`
-on `plutus/grok-prototype` only. Generated `report_v452.md` / Visual_Evals untracked, not committed.
+## Captures (`{SCRATCH}`)
+- `vs-main.txt` — `git log --oneline plutus/main..HEAD` + `git diff --stat plutus/main...HEAD` + GROK_PROTOTYPE parent compare
+- `pr.txt` — `git request-pull e99377f .` EXIT 0; **do not merge**
+- `ocr-preview.json` — reviewable_count=443 merge_base e99377f
+- `ocr-file-actions.json` — 431 skipped LIVE import; 12 grok-delta reviewed
+- `w4/hygiene.txt` — jesl HELLO-GATE, frozen
+- `w4/played.txt` — PLAYED=YES (Monday 5/5 on clipped bd09 this cycle, report sha 9689cd8a)
 
-## vs-main / GROK_PROTOTYPE compare (green)
-`git log --oneline plutus/main..HEAD` — 14 commits (5cd7af1 … 52a310d)
-Parent: `git -C PLUTUS/agent log --oneline plutus/main..plutus/grok-prototype` same tip 52a310d
-`git diff --stat plutus/main...HEAD` — 1159 files (LIVE import dominates)
-Evidence: `{SCRATCH}/vs-main.txt` `{SCRATCH}/w4/grok-prototype-compare.txt`
+## OCR zero open critical/high
+wave4-ocr-priority-6: 12/12 reviewed, 0 critical.
+Confirmed high: pressure-actor `ACTIVE_1` vs PressureState `ACTIVE-1`.
+Fixed: context.state emits `ACTIVE-1`/`ACTIVE-2`; XState node ids unchanged; bun test src/e1 197/0.
+Open critical/high after fix: **0**. Mediums (CSV host paths, multiweek synth) not highs.
 
-## request-pull
-`git request-pull e99377f .` EXIT 0
-Full text: `{SCRATCH}/pr.txt` — do not merge to plutus/main.
+## Five desks
+vs-main · request-pull · OCR preview · frozen/jesl · PLAYED recapture. Orch re-ran log/diff/request-pull/preview.
 
-## Golden / D13 (this cycle, WAVE 3 evidence reused)
-Monday 5/5 ≤3p NATIVE + E2 SS storyline. report sha 9689cd8a ×2.
-DIAG_EXIT=1 G1 fortress + G4 zone-element residuals documented.
-D13: runPipeline no oracle; grep MIXED comments/TVI; multiweek dir-tautology fixed in 52a310d.
-
-## OCR
-preview vs plutus/main reviewable_count=443. 431 skipped LIVE import. 12 grok-delta → wave4-ocr-priority-5 (this turn).
-See ocr-file-actions.json. Zero open critical/high required after that workflow.
-
-## Desks (5)
-vs-main · frozen/jesl sniper · OCR · request-pull · orch commit
-PLAYED:YES WAVE 3 harness. honest-watch: report_v452.md storyline read WAVE 3.
-
-Do not merge plutus/main.
+G1/G4 DIAG_EXIT=1 remain documented SC-5 residuals (not RRR). Named live bars_raw still clipped bd09.
