@@ -2,11 +2,13 @@
  * pressureActor — the per-zone lifecycle tracker (XState v5, spec B.W2.4 +
  * the zone-pressure doctrine B.W2.3 MACHINE 4).
  *
- * Lifecycle: VIRGIN -> ACTIVE_1 -> ACTIVE_2 -> DEPLETED | FORTRESS | BROKEN.
+ * Lifecycle: VIRGIN -> ACTIVE-1 -> ACTIVE-2 -> DEPLETED | FORTRESS | BROKEN.
+ * XState node ids stay ACTIVE_1/ACTIVE_2 (no hyphen in graph keys). Context
+ * `state` is the canonical PressureState spelling (ACTIVE-1 / ACTIVE-2).
  * - The battle-count guard: ONLY SWEEP advances reactionCount. Touches
  *   (WICK_REJECT / BODY_DEFEND / CONSOL_DWELL) record a defense instead.
  * - The 4H-never-death guard: tf === '4H' REFUSES the DEPLETED transition —
- *   the 3rd sweep still counts (reactionCount 3) but the state holds ACTIVE_2.
+ *   the 3rd sweep still counts (reactionCount 3) but the state holds ACTIVE-2.
  * - The fortress guard: on the would-be death sweep, defendedAtMs newer than
  *   the previous eatenAtMs routes to FORTRESS (the zone showed life after its
  *   last consumption) instead of DEPLETED.
@@ -137,7 +139,7 @@ export const pressureMachine = setup({
   }),
   states: {
     VIRGIN: {
-      entry: assign({ state: "VIRGIN" as PressureState }),
+      entry: assign({ state: "VIRGIN" }),
       on: {
         BATTLE_RESOLVED: [
           { target: "BROKEN", guard: "isPassThrough", actions: "recordSweep" },
@@ -149,7 +151,7 @@ export const pressureMachine = setup({
       },
     },
     ACTIVE_1: {
-      entry: assign({ state: "ACTIVE_1" as PressureState }),
+      entry: assign({ state: "ACTIVE-1" }),
       on: {
         BATTLE_RESOLVED: [
           { target: "BROKEN", guard: "isPassThrough", actions: "recordSweep" },
@@ -160,7 +162,7 @@ export const pressureMachine = setup({
       },
     },
     ACTIVE_2: {
-      entry: assign({ state: "ACTIVE_2" as PressureState }),
+      entry: assign({ state: "ACTIVE-2" }),
       on: {
         BATTLE_RESOLVED: [
           { target: "BROKEN", guard: "isPassThrough", actions: "recordSweep" },
@@ -173,7 +175,7 @@ export const pressureMachine = setup({
       },
     },
     DEPLETED: {
-      entry: assign({ state: "DEPLETED" as PressureState }),
+      entry: assign({ state: "DEPLETED" }),
       on: {
         BATTLE_RESOLVED: [
           { actions: "recordDefense", guard: "isDefenseBattle" },
@@ -183,7 +185,7 @@ export const pressureMachine = setup({
       },
     },
     FORTRESS: {
-      entry: assign({ state: "FORTRESS" as PressureState }),
+      entry: assign({ state: "FORTRESS" }),
       on: {
         BATTLE_RESOLVED: [
           { target: "BROKEN", guard: "isPassThrough", actions: "recordSweep" },
@@ -194,7 +196,7 @@ export const pressureMachine = setup({
       },
     },
     BROKEN: {
-      entry: assign({ state: "BROKEN" as PressureState }),
+      entry: assign({ state: "BROKEN" }),
       on: {
         BATTLE_RESOLVED: [
           { actions: "recordDefense", guard: "isDefenseBattle" },
