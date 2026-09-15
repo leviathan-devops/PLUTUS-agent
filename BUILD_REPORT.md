@@ -98,3 +98,13 @@ Not ship. W9 stays blocked on SC-21 2/5 + lmv-fx 13/15 NEEDS-LTF. Nested main/gr
 | SC-21 Monday | **FAIL 2/5** (unchanged) |
 
 Not ship. W9 stays blocked. Nested main/grok untouched.
+
+## 2026-09-15 SC-2 runner verdict (orch, HEAD 0806ac9)
+
+**Command:** `bun test src/e1/tests/properties.test.ts` → **24 pass / 0 fail / 115494 expects / 235ms.**
+**File:** `src/e1/tests/properties.test.ts:28` `const RUNS = 500` — six properties (P1 classification, P2 pressure, P3 temporal gate, P4 determinism, P5 confidence, P6 intents) each loop 500 seeded runs (`:57-90`).
+**Spec text** says `npx vitest run tests/properties.ts` (SPEC.md:255, wave table :1801-1803) but **vitest is not installed in this tree** (`which vitest` empty, no `node_modules/.bin/vitest`, no package.json entry). The `bun:test` file is the ported battery the W2 desk landed; SCOPE-e1's own gate line allows it: "`npx vitest ...` 500-run green OR bun test src/e1" (SCOPE-e1.md:16). OR-branch taken honestly.
+**Verdict:** SC-2 PASS **under the bun-native runner** (the only runner on disk). The "FILE NOT FOUND" line in round 1 is superseded — that probe passed a non-test path (`properties.ts`) to bun's filter; the real file is `properties.test.ts`.
+**SC-23 line in round 3** ("MISSING-FILE") is superseded by W7R (`src/kernel/report-validator.ts` landed + 5/0 @ `68440de`).
+
+Not ship. W9 stays blocked (SC-21 2/5, lmv-fx 13/15 NEEDS-LTF). Nested main/grok untouched.
