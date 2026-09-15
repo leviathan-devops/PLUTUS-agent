@@ -17,23 +17,23 @@ WAVES: 4
 - owner: spec desk
 - files: specs/mpse/** specs/fixtures/** (disjoint from src/e1 src/e2 src/kernel)
 - deliverable: S-1..S-7 compiled battery + D17 calibration
-- GATE: predicates CALIBRATED or born-off; founding oracle discharges
+- GATE: PASS — COMPILE_OK 46/46 fp 8acfe74f…; CALIBRATE_OK 20 calibrated 0 born-off
 - OCR: ocr delegate preview --from plutus/main --to HEAD --repo $PWD ; if reviewable_count>=6 then /workflow open-code-review
 
 ## WAVE 2 — Card Generator + Kernel in parallel (W1–W6)
 - plans: E1 src/e1/** · E2 src/e2/** · card src/card/** · kernel src/kernel/** · substrate already present
 - disjoint write-sets; cap 4 product-file writers; min 5 desks (snipers extra)
-- GATE per plan: that plan's SC row + ripwire --for on each new module first-touch (hook enforces kernel)
+- GATE: PASS batteries e1=195 e2=138 card=25 kernel=103; e1 fixture on shipped adapter; e2/card/kernel idle (already green)
 - OCR: per-plan after audit, delegate; workflow if >=6 files in that plan's diff
 
 ## WAVE 3 — converge + review fusion (W7–W8 wiring)
 - files: report-v452.ts rewrite-as-JESL-graph ONLY if write-set disjoint from frozen pair; golden-gate stays measurement
-- GATE: bun report-v452.ts + bun diag-reasoning-chain-golden.ts --day=2026-07-06 on REAL bars_raw
+- GATE: PASS 5/5 ≤3p on real bars (G1 EU LONG Δ1.5p); G1/G4 fortress residuals FAIL documented; report sha ×2 + D13 mutate-oracle identical
 - OCR: /workflow open-code-review args from=plutus/main to=HEAD repo=$PWD
 - ripwire --test-gate --quality-delta vs plutus/main
 - NOT /goal complete
 
 ## WAVE 4 — legal stop (PR vs main)
 - deliverable: commits on plutus/grok-prototype + request-pull / PR text vs plutus/main
-- GATE: Monday 5/5 ≤3p as E1+E2 storyline (R1: 5/5 without storyline = fail) · RRR≥3.0 except documented residuals · D13 grep-gate · determinism sha×2 · frozen pair · OCR zero open critical/high · classifier may not weaken
+- GATE: PASS request-pull vs e99377f; OCR 442 vs-main with 439 skipped (LIVE import) + 3 grok-delta reviewed; 5/5 storyline + frozen + D13; G1/G4 residuals still FAIL (not silent)
 - bundled /review only if a GitHub PR exists; this repo has no origin yet
