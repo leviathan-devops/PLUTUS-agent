@@ -1,9 +1,21 @@
 // src/kernel/l5-ti-graph.ts — B.W5-L5 WARHEAD CONFLUENCE (spec B.W5.1 L5).
-// Pure function: TiInput -> TiVerdict. Nodes are the operator's laws as typed
-// warheads (LAW-7/LAW-10/LAW-12/LAW-14 + the ratified RRR floor carried as input);
+// Pure function: TiInput -> TiVerdict. Nodes are the operator's laws as typed warheads ("3 pips
+// outside the back edge OR 1-2 pips inside the next rung" — LAW-7; LAW-10/LAW-12/LAW-14 + the
+// ratified RRR floor carried as input; full verbatim quotes with source anchors below);
 // edges are REQUIRES/SUPPORTS/CONTRADICTS relations. Grading is macro-level
 // confluence — a REQUIRES conjunction plus the RRR oracle — never binary math on
 // geometry. Emits law IDs, integer scores and checklist rows only.
+// DOCTRINE (D13 verbatim quotes; each quote carries its on-disk source anchor):
+// - LAW-7 (ladder steps SL): "3 pips outside the back edge OR 1-2 pips inside
+//   the next rung" (MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md:1338).
+// - LAW-10 (ATR floor): "SL never tighter than 0.5 × ATR(14)"
+//   (MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md:1339).
+// - LAW-12 (TP timeframe): "TP timeframe ≥ entry timeframe"
+//   (MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md:1340).
+// - LAW-14 (RRR): "RRR ≥ 2.5 (floor) / 4R+ (target)"
+//   (MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md:1341).
+// - RRR floor (D-R1/B10): "MINIMUM 3 RRR NOTHING LESS IS ACCEPTABLE"
+//   (MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md:2006).
 
 import { rrr_floor } from "../../specs/mpse/oracle-registry";
 
