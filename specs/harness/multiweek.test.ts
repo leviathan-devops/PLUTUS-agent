@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FutureBarLeak } from "../../src/runtime/errors.ts";
 import {
   MIN_WEEKS,
   MultiweekError,
@@ -101,7 +102,7 @@ describe("multiweek harness: D13 oracle isolation", () => {
     expect(data.zones[0]!.bottom).not.toBe(row.sl);
     expect(canonicalSerialize(data).includes("1.14395")).toBe(false);
   });
-  test("zone type comes from synth bars, not row.dir — orientationOk can fail", () => {
+  test("zone type comes from real 1H OHLC, not row.dir — orientationOk can fail", () => {
     const short = { n: 1, day: "Mon", dir: "Short" as const, e: 1.14, sl: 1.15, tp: 1.13, rrr: 3 };
     const long = { ...short, dir: "Long" as const };
     const a = buildRowEvidence(short, "EUR/USD", ANCHOR, 0, "2026-07-06");
@@ -183,5 +184,32 @@ describe("multiweek harness: verdict table output", () => {
     expect(table.includes("MW-ROW|2026-07-06|golden-week.json|")).toBe(true);
     expect(table.includes("SUSTAINED|")).toBe(true);
     expect(table.includes("SUSTAINED FAIL")).toBe(true);
+  });
+});
+
+describe("multiweek harness: FutureBarLeak ceiling + real decision 1H", () => {
+  test("fixture analysisPointMs past ANALYSIS_POINT_MS throws FUTURE_BAR_LEAK", () => {
+    const dir = mkdtempSync(join(tmpdir(), "mw-"));
+    try {
+      const future = join(dir, "future.json");
+      writeFileSync(
+        future,
+        JSON.stringify({
+          meta: { week: "2026-07-06", analysisPointMs: ANCHOR + 1 },
+          oracle: { eurusd: { rows: [{ n: 1, day: "Mon", dir: "Long", e: 1.14, sl: 1.13, tp: 1.16, rrr: 3 }] } },
+        }),
+      );
+      expect(() => evaluateWeekFixture(future)).toThrow(FutureBarLeak);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  test("buildRowEvidence last bar is the live decision 1H close t===anchor (not synth 8h window)", () => {
+    const row = { n: 1, day: "Mon", dir: "Short" as const, e: 1.14395, sl: 1.14485, tp: 1.1411, rrr: 3.18 };
+    const { data } = buildRowEvidence(row, "EUR/USD", ANCHOR, 0, "2026-07-06");
+    const last = data.bars[data.bars.length - 1]!;
+    expect(last.t).toBe(ANCHOR);
+    expect(data.bars.every((b) => b.t <= ANCHOR)).toBe(true);
+    expect(data.bars.length).toBeGreaterThan(0);
   });
 });

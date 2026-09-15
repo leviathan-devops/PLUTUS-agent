@@ -17,21 +17,25 @@
 //
 // D13: oracle rows are MEASUREMENT targets. The machine input built by
 // buildRowEvidence carries numeric geometry + bars ONLY — no oracle-metadata
-// keys (rrr/shape/day/n/dir). Zone type is derived from synth bar OHLC, not
-// row.dir. The comparator (win counting) is the sole consumer of row.dir/rrr.
-// Proven by multiweek.test.ts D13 cases.
+// keys (rrr/shape/day/n/dir). Zone type is derived from real decision 1H OHLC
+// (last.C<=last.O), not row.dir. The comparator (win counting) is the sole
+// consumer of row.dir/rrr. Proven by multiweek.test.ts D13 cases.
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { zoneClassificationMachine } from "../../src/e1/machines/index";
+import { decodeMarketData } from "../../src/e1/adapters/market-data-adapter";
+import { FutureBarLeak } from "../../src/runtime/errors";
 import {
   VALID_ACTIONS,
   VALID_INTENTS,
   makeLexiconData,
-  synthBars,
 } from "../../src/e1/tests/helpers";
 import type { LexiconData, PairKey, ZoneModel } from "../../src/e1/core/types";
 import { RRR_FLOOR } from "../../src/kernel/trade-computer";
+
+export const ANALYSIS_POINT_MS = 1783317600000;
+export const DECISION_BARS_PATH = "/tmp/opencode/bars_raw.json";
 
 export const SUSTAINED_NUMERATOR = 15;
 export const SUSTAINED_DENOMINATOR = 21;
@@ -43,6 +47,7 @@ export type MultiweekErrorCode =
   | "MW_FIXTURE_EMPTY"
   | "MW_UNKNOWN_PAIR"
   | "MW_ROW_MALFORMED"
+  | "MW_BARS_MISSING"
   | "MW_NO_WEEKS"
   | "MW_EVALUATOR_FAILED";
 
@@ -125,6 +130,32 @@ function asFinite(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function loadDecision1h(pair: string): unknown[] {
+  let raw: string;
+  try {
+    raw = readFileSync(DECISION_BARS_PATH, "utf8");
+  } catch (e) {
+    throw new MultiweekError("MW_BARS_MISSING", DECISION_BARS_PATH, `cannot read decision bars: ${(e as Error).message}`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new MultiweekError("MW_BARS_MISSING", DECISION_BARS_PATH, `decision bars JSON corrupt: ${(e as Error).message}`);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new MultiweekError("MW_BARS_MISSING", DECISION_BARS_PATH, "decision bars must be a feed array");
+  }
+  const feed = parsed.find((item) => {
+    if (!isRecord(item)) return false;
+    return item["pair"] === pair && String(item["timeframe"]).toUpperCase() === "1H";
+  });
+  if (!isRecord(feed) || !Array.isArray(feed["bars"]) || feed["bars"].length === 0) {
+    throw new MultiweekError("MW_BARS_MISSING", DECISION_BARS_PATH, `no 1H bars for ${pair}`);
+  }
+  return feed["bars"] as unknown[];
+}
+
 export function canonicalSerialize(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalSerialize).join(",")}]`;
   if (isRecord(value)) {
@@ -161,6 +192,11 @@ function readFixture(fixturePath: string): { week: string; anchorMs: number; row
   }
   if (anchorMs === null) {
     throw new MultiweekError("MW_FIXTURE_CORRUPT", fixturePath, "meta.analysisPointMs must be a finite number");
+  }
+  if (anchorMs > ANALYSIS_POINT_MS) {
+    throw new FutureBarLeak({
+      message: `FUTURE_BAR_LEAK fixture analysisPointMs=${anchorMs} past ANALYSIS_POINT_MS=${ANALYSIS_POINT_MS} — decode refused, never filtered`,
+    });
   }
   const oracle = parsed["oracle"] as Record<string, unknown>;
   const rowsByPair: Array<{ pair: string; rows: OracleRowInput[] }> = [];
@@ -210,11 +246,15 @@ export function buildRowEvidence(
   if (spec === undefined) {
     throw new MultiweekError("MW_UNKNOWN_PAIR", null, `pair '${pair}' has no market spec (known: ${Object.keys(PAIR_SPECS).join(",")})`);
   }
-  const bars = synthBars(9000 + idx, 8, anchorMs - 8 * 3600_000, 3600_000, spec.spot, 0, spec.pip * 3).filter(
-    (b) => b.t <= anchorMs,
-  );
+  if (anchorMs > ANALYSIS_POINT_MS) {
+    throw new FutureBarLeak({
+      message: `FUTURE_BAR_LEAK buildRowEvidence anchorMs=${anchorMs} past ANALYSIS_POINT_MS=${ANALYSIS_POINT_MS} — decode refused, never filtered`,
+    });
+  }
+  const decoded = decodeMarketData(loadDecision1h(pair), ANALYSIS_POINT_MS).filter((b) => b.t <= anchorMs);
+  const bars = decoded.slice(-8);
   if (bars.length === 0) {
-    throw new MultiweekError("MW_ROW_MALFORMED", null, `synthetic bars empty for ${pair}#${row.n} — seed/pipeline failure`);
+    throw new MultiweekError("MW_BARS_MISSING", DECISION_BARS_PATH, `no gated 1H bars for ${pair}#${row.n} at anchor ${anchorMs}`);
   }
   const hi = Math.max(...bars.map((b) => b.H));
   const lo = Math.min(...bars.map((b) => b.L));
