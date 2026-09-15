@@ -147,3 +147,9 @@ Not ship. Remaining reds are operator-owned doctrine rulings (2 questions in F4B
 **Disposition:** SC-25 ratio+floor legs PASS on the golden week; multi-week leg data-blocked (operator); named residual stands (`.trident/wave-audit/F4B.md` — the two doctrine questions own SC-21's path).
 
 Not ship. Goal active.
+
+## 2026-09-15 SC-26 strict zero (orch audit, HEAD 1a8a29b)
+
+Full lock-dir sweep (`src/{e1,e2,card,visual,aether,kernel,enforcement}`, non-test) found exactly ONE golden-level echo: `src/e1/tests/fixtures.ts:119` — a synthetic defendFixture bar on the 1.14110 axis. Desk `SC26Reaxis` re-axised it −0.05000 → 1.09110 (single line; consumers mapped; a try-then-revert experiment proved the sibling test literals are golden-week.json ORACLE truth, not fixture echoes). **Sweep now ZERO non-test hits**; the 22 remaining pattern hits are ALL inside `*.test.ts` as oracle data — exactly what the anti-cheat gate allows (oracle + harness, never the emission path). Walls unchanged: e1 398/0, src 1184/0, tsc clean, frozen MATCH.
+
+Not ship. Goal active.
