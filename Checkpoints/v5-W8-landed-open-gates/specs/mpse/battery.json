@@ -1,0 +1,496 @@
+{
+  "fingerprint": "8acfe74f272bf736de101e297b731cfa97c9fdd4a1684e63363489f116af7b7e",
+  "blockCount": 46,
+  "predicateCount": 46,
+  "predicates": [
+    {
+      "id": "S-1/B-1-side-match",
+      "spec": "S-1",
+      "block": "B-1-side-match",
+      "kind": "piecewise",
+      "oracle": "SIDE_INVERSION_VIOLATION",
+      "fixtures": [
+        "mutant-3-sideinversion-v452",
+        "mutant-4-sideinversion-v453-silent"
+      ]
+    },
+    {
+      "id": "S-1/B-2-mirror-floor",
+      "spec": "S-1",
+      "block": "B-2-mirror-floor",
+      "kind": "equality",
+      "oracle": "MIRROR_FLOOR_CONTRADICTED",
+      "fixtures": [
+        "mutant-1-40setup",
+        "mutant-2-13setup"
+      ]
+    },
+    {
+      "id": "S-1/B-3-divergence",
+      "spec": "S-1",
+      "block": "B-3-divergence",
+      "kind": "inequality",
+      "oracle": "CASCADE_DIVERGENCE_EXCEEDED",
+      "fixtures": [
+        "eu-chain-oracle",
+        "gu-chain-oracle"
+      ]
+    },
+    {
+      "id": "S-1/B-4-sequencing-requires",
+      "spec": "S-1",
+      "block": "B-4-sequencing-requires",
+      "kind": "process",
+      "oracle": "DESIGNATION_INCOMPLETE",
+      "fixtures": [
+        "eu-chain-oracle",
+        "monday-convergence-5-5"
+      ]
+    },
+    {
+      "id": "S-1/B-5-consumption-forbids",
+      "spec": "S-1",
+      "block": "B-5-consumption-forbids",
+      "kind": "subset",
+      "oracle": "CASCADE_DIVERGENCE_EXCEEDED",
+      "fixtures": [
+        "gu-chain-oracle",
+        "eu-chain-oracle"
+      ]
+    },
+    {
+      "id": "S-1/B-6-loop-detection",
+      "spec": "S-1",
+      "block": "B-6-loop-detection",
+      "kind": "recurrence",
+      "oracle": "MIRROR_FLOOR_CONTRADICTED",
+      "fixtures": [
+        "mutant-1-40setup"
+      ]
+    },
+    {
+      "id": "S-2/B-1-bounded-forall",
+      "spec": "S-2",
+      "block": "B-1-bounded-forall",
+      "kind": "forall",
+      "oracle": "DESIGNATION_INCOMPLETE",
+      "fixtures": [
+        "monday-convergence-5-5",
+        "eu-chain-oracle",
+        "gu-chain-oracle"
+      ]
+    },
+    {
+      "id": "S-2/B-2-dual-sided",
+      "spec": "S-2",
+      "block": "B-2-dual-sided",
+      "kind": "equality",
+      "oracle": "DESIGNATION_INCOMPLETE",
+      "fixtures": [
+        "monday-convergence-5-5"
+      ]
+    },
+    {
+      "id": "S-2/B-3-exists-unique",
+      "spec": "S-2",
+      "block": "B-3-exists-unique",
+      "kind": "exists-unique",
+      "oracle": "E3_DISOBEYED_E2",
+      "fixtures": [
+        "eu-2-near-edge",
+        "mutant-4-sideinversion-v453-silent"
+      ]
+    },
+    {
+      "id": "S-2/B-4-exhaustiveness-d8",
+      "spec": "S-2",
+      "block": "B-4-exhaustiveness-d8",
+      "kind": "forall",
+      "oracle": "DESIGNATION_INCOMPLETE",
+      "fixtures": [
+        "eu-chain-oracle",
+        "gu-chain-oracle",
+        "monday-convergence-5-5",
+        "mutant-3-sideinversion-v452"
+      ]
+    },
+    {
+      "id": "S-2/B-5-golden-instantiation",
+      "spec": "S-2",
+      "block": "B-5-golden-instantiation",
+      "kind": "equality",
+      "oracle": "DESIGNATION_INCOMPLETE",
+      "fixtures": [
+        "eu-2-near-edge",
+        "monday-convergence-5-5",
+        "mutant-2-13setup"
+      ]
+    },
+    {
+      "id": "S-3/B-1-E1-entry-lqz-near-edge",
+      "spec": "S-3",
+      "block": "B-1-E1-entry-lqz-near-edge",
+      "kind": "exists-unique",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week",
+        "mutant-9-eu2-nearedge"
+      ]
+    },
+    {
+      "id": "S-3/B-2-E2-ss-nested-liquidity-long",
+      "spec": "S-3",
+      "block": "B-2-E2-ss-nested-liquidity-long",
+      "kind": "inequality",
+      "oracle": "d17-eu2-near-edge-row-produced",
+      "fixtures": [
+        "golden-week",
+        "mutant-9-eu2-nearedge"
+      ]
+    },
+    {
+      "id": "S-3/B-3-E3-rwl-bs-deep-rung",
+      "spec": "S-3",
+      "block": "B-3-E3-rwl-bs-deep-rung",
+      "kind": "piecewise",
+      "oracle": "d17-eu4-deep-silent",
+      "fixtures": [
+        "golden-week",
+        "mutant-eu4-deep"
+      ]
+    },
+    {
+      "id": "S-3/B-4-E4-supply-side-symmetry-short",
+      "spec": "S-3",
+      "block": "B-4-E4-supply-side-symmetry-short",
+      "kind": "equality",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-3/B-5-S1-ladder-steps-sl",
+      "spec": "S-3",
+      "block": "B-5-S1-ladder-steps-sl",
+      "kind": "piecewise",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week",
+        "mutant-8-rrr-drift"
+      ]
+    },
+    {
+      "id": "S-3/B-6-S2-operative-defense-switch",
+      "spec": "S-3",
+      "block": "B-6-S2-operative-defense-switch",
+      "kind": "piecewise",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-3/B-7-S3-atr-floor",
+      "spec": "S-3",
+      "block": "B-7-S3-atr-floor",
+      "kind": "inequality",
+      "oracle": "d17-tolerance-drift-fire",
+      "fixtures": [
+        "golden-week",
+        "mutant-tolerance-drift"
+      ]
+    },
+    {
+      "id": "S-3/B-8-S4-golden-sl-min",
+      "spec": "S-3",
+      "block": "B-8-S4-golden-sl-min",
+      "kind": "inequality",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week",
+        "mutant-5-tpcap"
+      ]
+    },
+    {
+      "id": "S-3/B-9-T1-strength-driven-edge",
+      "spec": "S-3",
+      "block": "B-9-T1-strength-driven-edge",
+      "kind": "piecewise",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week",
+        "mutant-5-tpcap"
+      ]
+    },
+    {
+      "id": "S-3/B-10-T2-opposing-zone-internal-lqz",
+      "spec": "S-3",
+      "block": "B-10-T2-opposing-zone-internal-lqz",
+      "kind": "exists-unique",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-3/B-11-T3-tp-timeframe-floor",
+      "spec": "S-3",
+      "block": "B-11-T3-tp-timeframe-floor",
+      "kind": "inequality",
+      "oracle": "golden-week-discharge",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-3/B-12-shape-gating",
+      "spec": "S-3",
+      "block": "B-12-shape-gating",
+      "kind": "piecewise",
+      "oracle": "d17-side-inversion-pair",
+      "fixtures": [
+        "golden-week",
+        "mutant-side-inversion"
+      ]
+    },
+    {
+      "id": "S-4/B-1-lifecycle-recurrence",
+      "spec": "S-4",
+      "block": "B-1-lifecycle-recurrence",
+      "kind": "recurrence",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-4/B-2-battle-count-guard",
+      "spec": "S-4",
+      "block": "B-2-battle-count-guard",
+      "kind": "recurrence",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-4/B-3-death-scope-piecewise",
+      "spec": "S-4",
+      "block": "B-3-death-scope-piecewise",
+      "kind": "piecewise",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-4/B-4-fortress-invariant",
+      "spec": "S-4",
+      "block": "B-4-fortress-invariant",
+      "kind": "inequality",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week",
+        "golden-eu-8"
+      ]
+    },
+    {
+      "id": "S-4/B-5-third-mitigation-inequality",
+      "spec": "S-4",
+      "block": "B-5-third-mitigation-inequality",
+      "kind": "inequality",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week",
+        "eu4-deep",
+        "golden-eu-5"
+      ]
+    },
+    {
+      "id": "S-4/B-6-broken-with-battle",
+      "spec": "S-4",
+      "block": "B-6-broken-with-battle",
+      "kind": "piecewise",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-4/B-7-shield-relation",
+      "spec": "S-4",
+      "block": "B-7-shield-relation",
+      "kind": "subset",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-5/B-1-floor-inequality",
+      "spec": "S-5",
+      "block": "B-1-floor-inequality",
+      "kind": "inequality",
+      "oracle": "O-0.6",
+      "fixtures": [
+        "golden-week",
+        "rrr-drift"
+      ]
+    },
+    {
+      "id": "S-5/B-2-target-statement",
+      "spec": "S-5",
+      "block": "B-2-target-statement",
+      "kind": "equality",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-5/B-3-ceiling-predicate",
+      "spec": "S-5",
+      "block": "B-3-ceiling-predicate",
+      "kind": "inequality",
+      "oracle": "O-0.6",
+      "fixtures": [
+        "golden-week",
+        "tp-cap-mutant"
+      ]
+    },
+    {
+      "id": "S-5/B-4-min-sl",
+      "spec": "S-5",
+      "block": "B-4-min-sl",
+      "kind": "inequality",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-5/B-5-consequence-law",
+      "spec": "S-5",
+      "block": "B-5-consequence-law",
+      "kind": "equality",
+      "oracle": "O-0.6",
+      "fixtures": [
+        "golden-week",
+        "eu4-deep"
+      ]
+    },
+    {
+      "id": "S-5/B-6-filter-law",
+      "spec": "S-5",
+      "block": "B-6-filter-law",
+      "kind": "piecewise",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week",
+        "rrr-drift"
+      ]
+    },
+    {
+      "id": "S-6/B-1-nesting-subset",
+      "spec": "S-6",
+      "block": "B-1-nesting-subset",
+      "kind": "subset",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-6/B-2-bom-origin-restriction",
+      "spec": "S-6",
+      "block": "B-2-bom-origin-restriction",
+      "kind": "subset",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-6/B-3-thirty-minute-mom-only",
+      "spec": "S-6",
+      "block": "B-3-thirty-minute-mom-only",
+      "kind": "subset",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-6/B-4-lqz-tf-mapping",
+      "spec": "S-6",
+      "block": "B-4-lqz-tf-mapping",
+      "kind": "subset",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-6/B-5-hierarchy-authority",
+      "spec": "S-6",
+      "block": "B-5-hierarchy-authority",
+      "kind": "subset",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-7/B-1-no-wall-clock",
+      "spec": "S-7",
+      "block": "B-1-no-wall-clock",
+      "kind": "process",
+      "oracle": "O-0.8",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-7/B-2-content-hash",
+      "spec": "S-7",
+      "block": "B-2-content-hash",
+      "kind": "equality",
+      "oracle": "O-0.7",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-7/B-3-honest-data",
+      "spec": "S-7",
+      "block": "B-3-honest-data",
+      "kind": "process",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-7/B-4-no-fabricated-defaults",
+      "spec": "S-7",
+      "block": "B-4-no-fabricated-defaults",
+      "kind": "equality",
+      "oracle": "O-0.3",
+      "fixtures": [
+        "golden-week"
+      ]
+    },
+    {
+      "id": "S-7/B-5-x2-determinism",
+      "spec": "S-7",
+      "block": "B-5-x2-determinism",
+      "kind": "equality",
+      "oracle": "O-0.6",
+      "fixtures": [
+        "golden-week",
+        "tolerance-drift"
+      ]
+    }
+  ]
+}

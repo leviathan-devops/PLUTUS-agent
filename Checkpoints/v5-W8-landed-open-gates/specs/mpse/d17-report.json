@@ -1,0 +1,554 @@
+{
+  "batteryFingerprint": "8acfe74f272bf736de101e297b731cfa97c9fdd4a1684e63363489f116af7b7e",
+  "blockCount": 46,
+  "predicateCount": 46,
+  "calibrated": [
+    "S-1/B-1-side-match",
+    "S-1/B-2-mirror-floor",
+    "S-1/B-6-loop-detection",
+    "S-2/B-3-exists-unique",
+    "S-2/B-4-exhaustiveness-d8",
+    "S-2/B-5-golden-instantiation",
+    "S-3/B-1-E1-entry-lqz-near-edge",
+    "S-3/B-12-shape-gating",
+    "S-3/B-2-E2-ss-nested-liquidity-long",
+    "S-3/B-3-E3-rwl-bs-deep-rung",
+    "S-3/B-5-S1-ladder-steps-sl",
+    "S-3/B-7-S3-atr-floor",
+    "S-3/B-8-S4-golden-sl-min",
+    "S-3/B-9-T1-strength-driven-edge",
+    "S-4/B-5-third-mitigation-inequality",
+    "S-5/B-1-floor-inequality",
+    "S-5/B-3-ceiling-predicate",
+    "S-5/B-5-consequence-law",
+    "S-5/B-6-filter-law",
+    "S-7/B-5-x2-determinism"
+  ],
+  "flagged": [],
+  "born_off": [],
+  "evidence_only": [
+    "S-1/B-3-divergence",
+    "S-1/B-4-sequencing-requires",
+    "S-1/B-5-consumption-forbids",
+    "S-2/B-1-bounded-forall",
+    "S-2/B-2-dual-sided",
+    "S-3/B-10-T2-opposing-zone-internal-lqz",
+    "S-3/B-11-T3-tp-timeframe-floor",
+    "S-3/B-4-E4-supply-side-symmetry-short",
+    "S-3/B-6-S2-operative-defense-switch",
+    "S-4/B-1-lifecycle-recurrence",
+    "S-4/B-2-battle-count-guard",
+    "S-4/B-3-death-scope-piecewise",
+    "S-4/B-4-fortress-invariant",
+    "S-4/B-6-broken-with-battle",
+    "S-4/B-7-shield-relation",
+    "S-5/B-2-target-statement",
+    "S-5/B-4-min-sl",
+    "S-6/B-1-nesting-subset",
+    "S-6/B-2-bom-origin-restriction",
+    "S-6/B-3-thirty-minute-mom-only",
+    "S-6/B-4-lqz-tf-mapping",
+    "S-6/B-5-hierarchy-authority",
+    "S-7/B-1-no-wall-clock",
+    "S-7/B-2-content-hash",
+    "S-7/B-3-honest-data",
+    "S-7/B-4-no-fabricated-defaults"
+  ],
+  "foundingControls": [
+    {
+      "id": "mirror-floor-24",
+      "expectedSetups": 24,
+      "verdict": "VALID"
+    }
+  ],
+  "verdicts": {
+    "S-1/B-3-divergence#golden-week#oracle.eurusd": {
+      "predicate": "S-1/B-3-divergence",
+      "oracle": "divergence_le",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.eurusd — recorded, never gating"
+    },
+    "S-1/B-3-divergence#golden-week#oracle.gbpusd": {
+      "predicate": "S-1/B-3-divergence",
+      "oracle": "divergence_le",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.gbpusd — recorded, never gating"
+    },
+    "S-1/B-4-sequencing-requires#golden-week#mondayConvergence": {
+      "predicate": "S-1/B-4-sequencing-requires",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#mondayConvergence — recorded, never gating"
+    },
+    "S-1/B-4-sequencing-requires#golden-week#oracle.eurusd": {
+      "predicate": "S-1/B-4-sequencing-requires",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.eurusd — recorded, never gating"
+    },
+    "S-1/B-5-consumption-forbids#golden-week#oracle.eurusd": {
+      "predicate": "S-1/B-5-consumption-forbids",
+      "oracle": "divergence_le",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.eurusd — recorded, never gating"
+    },
+    "S-1/B-5-consumption-forbids#golden-week#oracle.gbpusd": {
+      "predicate": "S-1/B-5-consumption-forbids",
+      "oracle": "divergence_le",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.gbpusd — recorded, never gating"
+    },
+    "S-2/B-1-bounded-forall#golden-week#mondayConvergence": {
+      "predicate": "S-2/B-1-bounded-forall",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#mondayConvergence — recorded, never gating"
+    },
+    "S-2/B-1-bounded-forall#golden-week#oracle.eurusd": {
+      "predicate": "S-2/B-1-bounded-forall",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.eurusd — recorded, never gating"
+    },
+    "S-2/B-1-bounded-forall#golden-week#oracle.gbpusd": {
+      "predicate": "S-2/B-1-bounded-forall",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.gbpusd — recorded, never gating"
+    },
+    "S-2/B-2-dual-sided#golden-week#mondayConvergence": {
+      "predicate": "S-2/B-2-dual-sided",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#mondayConvergence — recorded, never gating"
+    },
+    "S-2/B-4-exhaustiveness-d8#golden-week#mondayConvergence": {
+      "predicate": "S-2/B-4-exhaustiveness-d8",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#mondayConvergence — recorded, never gating"
+    },
+    "S-2/B-4-exhaustiveness-d8#golden-week#oracle.eurusd": {
+      "predicate": "S-2/B-4-exhaustiveness-d8",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.eurusd — recorded, never gating"
+    },
+    "S-2/B-4-exhaustiveness-d8#golden-week#oracle.gbpusd": {
+      "predicate": "S-2/B-4-exhaustiveness-d8",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.gbpusd — recorded, never gating"
+    },
+    "S-2/B-5-golden-instantiation#golden-week#mondayConvergence": {
+      "predicate": "S-2/B-5-golden-instantiation",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#mondayConvergence — recorded, never gating"
+    },
+    "S-3/B-1-E1-entry-lqz-near-edge#golden-week": {
+      "predicate": "S-3/B-1-E1-entry-lqz-near-edge",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-10-T2-opposing-zone-internal-lqz#golden-week": {
+      "predicate": "S-3/B-10-T2-opposing-zone-internal-lqz",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-11-T3-tp-timeframe-floor#golden-week": {
+      "predicate": "S-3/B-11-T3-tp-timeframe-floor",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-12-shape-gating#golden-week": {
+      "predicate": "S-3/B-12-shape-gating",
+      "oracle": "side_match",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-2-E2-ss-nested-liquidity-long#golden-week": {
+      "predicate": "S-3/B-2-E2-ss-nested-liquidity-long",
+      "oracle": "near_edge",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-3-E3-rwl-bs-deep-rung#golden-week": {
+      "predicate": "S-3/B-3-E3-rwl-bs-deep-rung",
+      "oracle": "shape_gate",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-4-E4-supply-side-symmetry-short#golden-week": {
+      "predicate": "S-3/B-4-E4-supply-side-symmetry-short",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-5-S1-ladder-steps-sl#golden-week": {
+      "predicate": "S-3/B-5-S1-ladder-steps-sl",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-6-S2-operative-defense-switch#golden-week": {
+      "predicate": "S-3/B-6-S2-operative-defense-switch",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-7-S3-atr-floor#golden-week": {
+      "predicate": "S-3/B-7-S3-atr-floor",
+      "oracle": "divergence_le",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-8-S4-golden-sl-min#golden-week": {
+      "predicate": "S-3/B-8-S4-golden-sl-min",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-3/B-9-T1-strength-driven-edge#golden-week": {
+      "predicate": "S-3/B-9-T1-strength-driven-edge",
+      "oracle": "totality_forall",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-4/B-1-lifecycle-recurrence#golden-week": {
+      "predicate": "S-4/B-1-lifecycle-recurrence",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-4/B-2-battle-count-guard#golden-week": {
+      "predicate": "S-4/B-2-battle-count-guard",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-4/B-3-death-scope-piecewise#golden-week": {
+      "predicate": "S-4/B-3-death-scope-piecewise",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-4/B-4-fortress-invariant#golden-week": {
+      "predicate": "S-4/B-4-fortress-invariant",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-4/B-4-fortress-invariant#golden-week#oracle.eurusd.rows[8]": {
+      "predicate": "S-4/B-4-fortress-invariant",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.eurusd.rows[8] — recorded, never gating"
+    },
+    "S-4/B-5-third-mitigation-inequality#golden-week": {
+      "predicate": "S-4/B-5-third-mitigation-inequality",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-4/B-5-third-mitigation-inequality#golden-week#oracle.eurusd.rows[5]": {
+      "predicate": "S-4/B-5-third-mitigation-inequality",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week#oracle.eurusd.rows[5] — recorded, never gating"
+    },
+    "S-4/B-6-broken-with-battle#golden-week": {
+      "predicate": "S-4/B-6-broken-with-battle",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-4/B-7-shield-relation#golden-week": {
+      "predicate": "S-4/B-7-shield-relation",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-5/B-1-floor-inequality#golden-week": {
+      "predicate": "S-5/B-1-floor-inequality",
+      "oracle": "O-0.6",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-5/B-2-target-statement#golden-week": {
+      "predicate": "S-5/B-2-target-statement",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-5/B-3-ceiling-predicate#golden-week": {
+      "predicate": "S-5/B-3-ceiling-predicate",
+      "oracle": "O-0.6",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-5/B-4-min-sl#golden-week": {
+      "predicate": "S-5/B-4-min-sl",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-5/B-5-consequence-law#golden-week": {
+      "predicate": "S-5/B-5-consequence-law",
+      "oracle": "O-0.6",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-5/B-6-filter-law#golden-week": {
+      "predicate": "S-5/B-6-filter-law",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-6/B-1-nesting-subset#golden-week": {
+      "predicate": "S-6/B-1-nesting-subset",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-6/B-2-bom-origin-restriction#golden-week": {
+      "predicate": "S-6/B-2-bom-origin-restriction",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-6/B-3-thirty-minute-mom-only#golden-week": {
+      "predicate": "S-6/B-3-thirty-minute-mom-only",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-6/B-4-lqz-tf-mapping#golden-week": {
+      "predicate": "S-6/B-4-lqz-tf-mapping",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-6/B-5-hierarchy-authority#golden-week": {
+      "predicate": "S-6/B-5-hierarchy-authority",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-7/B-1-no-wall-clock#golden-week": {
+      "predicate": "S-7/B-1-no-wall-clock",
+      "oracle": "O-0.8",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-7/B-2-content-hash#golden-week": {
+      "predicate": "S-7/B-2-content-hash",
+      "oracle": "O-0.7",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-7/B-3-honest-data#golden-week": {
+      "predicate": "S-7/B-3-honest-data",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-7/B-4-no-fabricated-defaults#golden-week": {
+      "predicate": "S-7/B-4-no-fabricated-defaults",
+      "oracle": "O-0.3",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "S-7/B-5-x2-determinism#golden-week": {
+      "predicate": "S-7/B-5-x2-determinism",
+      "oracle": "O-0.6",
+      "expect": null,
+      "actual": "EVIDENCE",
+      "pass": null,
+      "note": "embedded section via embedded:golden-week — recorded, never gating"
+    },
+    "eu2-near-edge": {
+      "predicate": "S-3/B-2-E2-ss-nested-liquidity-long",
+      "oracle": "d17-eu2-near-edge-row-produced",
+      "expect": "ROW",
+      "actual": "ROW",
+      "pass": true,
+      "note": "via norm:mutant-9-eu2-near-edge.json"
+    },
+    "eu4-deep": {
+      "predicate": "S-5/B-5-consequence-law",
+      "oracle": "O-0.6",
+      "expect": "SILENT",
+      "actual": "SILENT",
+      "pass": true,
+      "note": "via norm:mutant-6-eu4-deep-rung.json"
+    },
+    "mirror-floor-13": {
+      "predicate": "S-2/B-5-golden-instantiation",
+      "oracle": "DESIGNATION_INCOMPLETE",
+      "expect": "CONTRADICTED",
+      "actual": "CONTRADICTED",
+      "pass": true,
+      "note": "via stem:mutant-2-13setup.json"
+    },
+    "mirror-floor-24": {
+      "predicate": "founding-control(f(T)=N×(1+P))",
+      "oracle": "mirror_floor",
+      "expect": "VALID",
+      "actual": "VALID",
+      "pass": true,
+      "note": "synthesized from fixtures' declared expectedSetups=24"
+    },
+    "mirror-floor-40": {
+      "predicate": "S-1/B-6-loop-detection",
+      "oracle": "MIRROR_FLOOR_CONTRADICTED",
+      "expect": "CONTRADICTED",
+      "actual": "CONTRADICTED",
+      "pass": true,
+      "note": "via stem:mutant-1-40setup.json"
+    },
+    "rrr-drift": {
+      "predicate": "S-5/B-6-filter-law",
+      "oracle": "O-0.3",
+      "expect": "FIRE",
+      "actual": "FIRE",
+      "pass": true,
+      "note": "via norm:mutant-8-rrr-drift.json"
+    },
+    "side-inversion-v452": {
+      "predicate": "S-3/B-12-shape-gating",
+      "oracle": "d17-side-inversion-pair",
+      "expect": "FIRE",
+      "actual": "FIRE",
+      "pass": true,
+      "note": "via tokens:mutant-3-sideinversion-v452.json,mutant-4-sideinversion-v453-silent.json"
+    },
+    "side-inversion-v453": {
+      "predicate": "S-3/B-12-shape-gating",
+      "oracle": "d17-side-inversion-pair",
+      "expect": "SILENT",
+      "actual": "SILENT",
+      "pass": true,
+      "note": "via tokens:mutant-3-sideinversion-v452.json,mutant-4-sideinversion-v453-silent.json"
+    },
+    "tolerance-drift": {
+      "predicate": "S-7/B-5-x2-determinism",
+      "oracle": "O-0.6",
+      "expect": "FIRE",
+      "actual": "FIRE",
+      "pass": true,
+      "note": "via norm:mutant-7-tolerance-drift.json"
+    },
+    "tp-cap": {
+      "predicate": "S-5/B-3-ceiling-predicate",
+      "oracle": "O-0.6",
+      "expect": "FIRE",
+      "actual": "FIRE",
+      "pass": true,
+      "note": "via tokens:mutant-5-tpcap.json"
+    }
+  }
+}

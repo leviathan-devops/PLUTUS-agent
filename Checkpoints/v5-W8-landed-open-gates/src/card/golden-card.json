@@ -1,0 +1,95 @@
+{
+  "$schema": "plutus-card-v1",
+  "meta": {
+    "pair": "EUR/USD",
+    "tf": "1H",
+    "analysisPointMs": 1783317600000
+  },
+  "zones": [
+    { "zoneId": "EUR/USD|1H|1783076400000|1.14460" },
+    { "zoneId": "EUR/USD|1H|1782990000000|1.14004" },
+    { "zoneId": "EUR/USD|1H|1782968400000|1.13815" }
+  ],
+  "designations": [
+    {
+      "id": "desig-eu-tue-short",
+      "supplyZoneId": "EUR/USD|1H|1783076400000|1.14460",
+      "demandZoneId": "EUR/USD|1H|1782990000000|1.14004",
+      "direction": "SHORT"
+    },
+    {
+      "id": "desig-eu-tue-long",
+      "supplyZoneId": "EUR/USD|1H|1783076400000|1.14460",
+      "demandZoneId": "EUR/USD|1H|1782968400000|1.13815",
+      "direction": "LONG"
+    }
+  ],
+  "visuals": {
+    "charts": [
+      { "path": "screenshots/eu_1h.png", "tf": "1H", "grade": "PASS" },
+      { "path": "screenshots/eu_4h.png", "tf": "4H", "grade": "PASS" }
+    ]
+  },
+  "setups": [
+    {
+      "id": "setup-eu-tue-short-1",
+      "zoneId": "EUR/USD|1H|1783076400000|1.14460",
+      "direction": "SHORT",
+      "rr": 3.2
+    }
+  ],
+  "provenance": {
+    "entries": [
+      {
+        "id": "EUR/USD|1H|1783076400000|1.14460",
+        "source": "src/e1/actors/zone-map.ts:88",
+        "kind": "e1-zone"
+      },
+      {
+        "id": "EUR/USD|1H|1782990000000|1.14004",
+        "source": "src/e1/actors/zone-map.ts:91",
+        "kind": "e1-zone"
+      },
+      {
+        "id": "EUR/USD|1H|1782968400000|1.13815",
+        "source": "src/e1/actors/zone-map.ts:94",
+        "kind": "e1-zone"
+      },
+      {
+        "id": "desig-eu-tue-short",
+        "source": "src/e2/machines/designation-machine.ts:142",
+        "kind": "e2-designation"
+      },
+      {
+        "id": "desig-eu-tue-long",
+        "source": "src/e2/machines/designation-machine.ts:147",
+        "kind": "e2-designation"
+      },
+      {
+        "id": "screenshots/eu_1h.png",
+        "source": "src/visual/screenshot-capture.ts:37",
+        "kind": "chart"
+      },
+      {
+        "id": "screenshots/eu_4h.png",
+        "source": "src/visual/screenshot-capture.ts:37",
+        "kind": "chart"
+      },
+      {
+        "id": "setup-eu-tue-short-1",
+        "source": "src/card/assembler.ts:201",
+        "kind": "setup",
+        "value": 3.2
+      }
+    ]
+  },
+  "grounding": {
+    "forwardPosition": 12.5,
+    "anchorsNumeric": true,
+    "directionOrder": true,
+    "targetClosed": true,
+    "zoneIdsReal": true,
+    "projectionIdsReal": true,
+    "rrrComputable": true
+  }
+}
