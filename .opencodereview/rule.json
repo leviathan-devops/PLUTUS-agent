@@ -1,0 +1,24 @@
+{
+  "groups": [
+    {
+      "id": "frozen-pair",
+      "pattern": "src/mdve/sl-lmv.ts",
+      "rule": "FROZEN PAIR. Any content change is CRITICAL. Do not suggest edits. SHA must remain 912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab. Reviewers may only confirm the file is untouched."
+    },
+    {
+      "id": "frozen-dedup",
+      "pattern": "src/mdve/trade-dedup.ts",
+      "rule": "FROZEN PAIR. Any content change is CRITICAL. SHA must remain 33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4."
+    },
+    {
+      "id": "plutus-kernel",
+      "pattern": "src/{mdve,pipeline,e1,e2,e3,jesl,kernel,card,brains,report,substrate}/**/*.ts",
+      "rule": "Plutus V5 kernel. Doctrine D13: golden/oracle prices must not appear in the emission path (only golden-gate.ts + diag scripts). Decision logic must not read Date.now. Do not re-implement the cascade inside a test runner (P2-1). Flag hardcoded pip/price literals used as trade levels. Flag writes to sl-lmv.ts or trade-dedup.ts. Prefer blast-radius notes (who calls this) over style nits. Severity: oracle-in-emission and frozen-pair = critical; Date.now in decisions = high; fitted-to-golden shortcuts = high."
+    },
+    {
+      "id": "plutus-tests",
+      "pattern": "{diag-*.ts,src/**/*.test.ts,specs/**}",
+      "rule": "Tests wrap production. Never duplicate E2 cascade in the runner. Known-bad fixtures must refuse. Golden levels in tests are measurement oracles, not inputs to runPipeline."
+    }
+  ]
+}
