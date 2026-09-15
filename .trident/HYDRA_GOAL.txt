@@ -1,0 +1,117 @@
+/goal Plutus V5 full overhaul on plutus/grok-prototype — LIVE INNER WAVE 1a temporal OHLC lock (bars_raw from real CSVs). classifier may not weaken. Legal stop = WAVE 4 PR vs plutus/main. A sub-inner PASS is not /goal done. Fixture / jesl / one OCR / host bun is not /goal done.
+
+PRODUCT: Plutus Agent V5 (Card Generator + Kernel). NOT a game tree. gauntlet-loop is not required. Bind hydra-mode + hydra-orchestrator + wave-planning + trident-deep-planning only.
+
+TREE: /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/agent/.worktrees/grok-prototype
+BRANCH: plutus/grok-prototype (ahead of plutus/main @ e99377f; do not pin a self-hash)
+PARENT: plutus/main stays e99377f — Grok never commits there.
+BASELINE: 5cd7af1 import LIVE verified tree (report-v452, golden-gate, 42 diags, src/jesl, src/e1/e2/card/kernel/substrate, V5 specs).
+
+FROZEN SURFACES: src/mdve/sl-lmv.ts 912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab · src/mdve/trade-dedup.ts 33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4 · D13 oracle isolation · no Date.now in decisions · V6/Orca/LuxAlgo out of V5.
+
+RUNTIME-GRADE THESIS: trades from E1 lexicon vision + E2 storyline on temporally locked real OHLC, measured against LIVE golden-week.json — not hardcoded prices, not synthetic bars, not host pytest as ship.
+
+CURRENT REALITY (this turn, disk):
+- git: plutus/main e99377f CLEAN; grok-prototype e660648 = LIVE import + grok OCR/wave-plan + this pin. Main worktree status clean.
+- bun test src/jesl/ on prototype: 1 pass / 0 fail · HELLO-GATE ALL GREEN (44ms). bun install EACCES in this sandbox; tests still ran.
+- frozen pair MATCH both SHAs on prototype.
+- /tmp/opencode/bars_raw.json MISSING. 30m/15m GAP. Never aggregate 1H→4H.
+- Real CSVs: Vibe 4H+1H + Air 1H for 2026-07-06, 07-13, 07-20. ANALYSIS_POINT_MS=1783317600000.
+- MASTER_CONTEXT/knowledge-graph/graph.db 3.4M on disk, gitignored. .trident/knowledge-graph/shared.db absent.
+- No git origin. PR = git log/diff plutus/main...plutus/grok-prototype until a remote exists.
+- Ripwire plugin enabled; PreToolUse deny-once on kernel; MCP indexes prototype src/.
+- OPEN inner: WAVE 1a. CLOSED: git import, jesl hello, frozen verify, grok runtime seed. Next unused: WAVE 1a bars_raw rebuild. Do not reopen closed inners.
+
+START NOW = WAVE 1a only (open inner). Do not rewrite WAVE PLAN after cycle 0.
+
+================================================================================
+BUILD SPEC
+================================================================================
+T-1 Temporal lock: rebuild /tmp/opencode/bars_raw.json from real Vibe/Air CSVs; all bars t<=1783317600000; FutureBarLeak throws on t>anchor.
+T-2 W0 spec corpus: specs/mpse S-1..S-7 compiled + D17 calibration; golden-week.json is measurement oracle only (D13).
+T-3 Machine 1 Card Generator: E1 lexicon vision + E2 state machines + visual layer + card assembler (src/e1, src/e2, src/card, src/visual). Interfaces first.
+T-4 Machine 2 Plutus Kernel: src/kernel trade computer consumes the card; JESL-activated; frozen pair untouched.
+T-5 Ship PR: golden Monday 5/5 ≤3p as E1+E2 storyline (R1: 5/5 without storyline = fail), full-week ≥90% path, determinism sha×2, OCR zero open critical/high, request-pull vs plutus/main.
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+SC-1 Frozen pair SHAs match 91294083… / 33914c89… after every commit. classifier may not weaken.
+SC-2 bun test src/jesl/ → HELLO-GATE ALL GREEN. Hygiene, not ship.
+SC-3 bars_raw exists; FutureBarLeak known-bad t>anchor MUST refuse; t===anchor passes.
+SC-4 WAVE 2 desks: disjoint src/e1 vs src/e2 vs src/card vs src/kernel; cap 4 writers; min 5 desks.
+SC-5 WAVE 3: bun report-v452.ts then bun diag-reasoning-chain-golden.ts --day=2026-07-06 on REAL bars. G1 entry ±2p, else ±3p (R33). RRR≥3.0 except documented residuals (G1 EU fortress, G4 DXY→EU inversion).
+SC-6 D13 grep-gate: golden levels only in golden-gate.ts + diags. Mutate oracle → pipeline sha unchanged. runPipeline takes no oracle.
+SC-7 WAVE 3 OCR: ocr delegate preview --from plutus/main --to HEAD --repo $PWD; reviewable_count>=6 → /workflow open-code-review. Zero open critical/high. Not GitHub /review unless origin+PR exist.
+SC-8 WAVE 4 legal stop: git log plutus/main..HEAD is the V5 commit list; GROK_PROTOTYPE.md compare commands green; frozen+determinism+storyline+OCR. PLAYED:YES means the golden harness ran on real bars THIS cycle. VIDEO_WATCHED:YES is N/A (no product TUI tape); substitute honest-watch = orch re-ran SC-5 and read_file'd the report. classifier may not weaken.
+
+================================================================================
+SCRIPT TESTING
+================================================================================
+Hygiene, never GATE B, never /goal complete:
+- bun test src/jesl/ (hello.test.ts). known-bad: tampered journal MUST refuse (SC-10 verified:false); bad assert BAD-ASSERT; 1/0 NON-FINITE; generate unbracketed [JESL UNBRACKETED-GENERATION].
+- python3 ~/.grok/lib/plutus_v5_wave_gate.py frozen · cwd-check (cwd outside worktree MUST refuse).
+- sha256sum frozen pair.
+- Host bun/tsc green is hygiene, never ship.
+
+================================================================================
+CONTAINER TESTING
+================================================================================
+HONEST_CLASS: pipeline machinery = script-test (bun). Container is the 2026-09-05 plutus-v5-ct class (S1–S7) when shipping the agent image — host bun is not CONTAINER_TEST.
+Launch env: worktree cwd + bun + /tmp/opencode/bars_raw.json. Evidence dir: <worktree>/.trident/wave-audit/cycle-v5-t1/ (next unused; do not overwrite).
+
+RB-FROZEN  passToken: sha256 stdout equals 912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab and 33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4  failToken: any other digest or staged frozen-pair diff
+RB-JESL    passToken: stdout contains HELLO-GATE: ALL GREEN and 0 fail  failToken: fail>0 or missing hello.test.ts
+RB-TEMPORAL passToken: FutureBarLeak throw on t>1783317600000  failToken: future bar accepted or bars_raw missing after WAVE 1a
+RB-GOLDEN  passToken: diag-reasoning-chain-golden.ts --day=2026-07-06 Monday 5/5 ≤3p from report-v452 on real bars  failToken: fitted-to-golden, synthetic bars, or skipped harness
+RB-D13     passToken: grep-gate zero oracle literals in emission path; mutate-oracle report sha unchanged  failToken: golden-week.json read by runPipeline
+RB-OCR     passToken: ocr delegate preview JSON with reviewable_files; every previewed file reviewed|skipped  failToken: skipped preview or invented files
+RB-RIPWIRE passToken: first kernel write this session deny RIPWIRE_GATE then retry allow; --test-gate disclosed  failToken: kernel write with no briefing cache and no deny
+
+Adversarial angles: IDENTITY (Poseidon orch != builder) TOOLS (ripwire+ocr) FIREWALL (frozen pair) LIFECYCLE (WAVE 1a→4) INTEGRATION (card→kernel) ERRORS (JESL refuse tokens) CONFIG (cwd-check).
+
+================================================================================
+CLASSIFIER FIREWALL
+================================================================================
+LIVE INNER = WAVE 1a (resume point). sub-inner PASS (jesl, frozen, OCR of one wave, fixture E2E) is not /goal done.
+FORBIDDEN: stamp Achieved because HELLO-GATE is green. FORBIDDEN: demote WAVE 3 / WAVE 4 to optional evidence. FORBIDDEN: pytest/bun as ship. classifier may not weaken.
+
+================================================================================
+HYDRA ORCHESTRATOR
+================================================================================
+orch != builder. hydra-mode L0 preflight before any dispatch (.trident/wave-plan.md WAVES: 4 already seeded). hydra-orchestrator: min 5 desks/turn, cap 4 product-file writers, disjoint write-sets, claim-is-a-claim (orch re-runs gates).
+Dispatch law: MISSION / READ FIRST / KNOWN STATE / TASKS WHAT-HOW-WHY / CONSTRAINTS / VERIFICATION / RETURN.
+Preflight: wave-plan + script-test known-bad + CT tokens — then dispatch same turn.
+Kick/steer. Record .trident/wave-audit the same turn. Never stamp Achieved on a sub-inner.
+Cwd always grok-prototype. python3 ~/.grok/lib/plutus_v5_wave_gate.py cwd-check before product writes.
+
+================================================================================
+ANTI-PATTERNS
+================================================================================
+AP-1  FROZEN-PAIR-TOUCH     kill: pre-commit + ripwire deny + SHA gate
+AP-2  ORACLE-IN-EMISSION    kill: D13 grep-gate; runPipeline takes no oracle
+AP-3  FITTED-TO-GOLDEN      kill: R1 Monday 5/5 without E1+E2 storyline is fail
+AP-4  AGGREGATE-1H-TO-4H    kill: documented GAP; never forge TF closes
+AP-5  DATE-NOW-IN-DECISION  kill: temporal position from bars + ANALYSIS_POINT_MS only
+AP-6  RUNNER-REIMPLEMENTS-CASCADE kill: P2-1 tests wrap production
+AP-7  COMMIT-TO-MAIN        kill: worktree hook refuses non-plutus/grok-prototype on this WT
+AP-8  CHECKPOINTS-AS-LIVE   kill: live src only; Checkpoints deleted from prototype WT
+AP-9  CLASSIFIER-SUBINNER   kill: legal stop is WAVE 4 only
+AP-10 RIPWIRE-SKIP-KERNEL   kill: PreToolUse deny-once; fail-open is timeout only
+AP-11 OCR-SKIP-WAVE         kill: WAVE 2+ require ocr delegate vs plutus/main
+AP-12 V6-ORCA-LUXALGO       kill: out of V5 scope
+AP-13 STEAL-BUNDLED-REVIEW  kill: OCR is in-session; /review is GitHub only if origin+PR
+
+================================================================================
+WAVE PLAN
+================================================================================
+WAVES: 4  (file: .trident/wave-plan.md — do not rewrite after cycle 0)
+WAVE 1a OPEN INNER: bars_raw + FutureBarLeak + re-verify jesl/frozen. START NOW here.
+WAVE 1b W0 spec corpus (specs/mpse, specs/fixtures) + OCR if files.
+WAVE 2 parallel Card+Kernel (W1–W6) disjoint src/e1 e2 card kernel; OCR per plan; ripwire hook.
+WAVE 3 converge + /workflow open-code-review + ripwire --test-gate + golden on real bars. Not /goal complete.
+WAVE 4 legal stop: PR vs plutus/main you would bet money on (storyline+3pip+D13+frozen+OCR+determinism).
+
+OCR lifecycle: after every implementation wave `ocr delegate preview --from plutus/main --to HEAD --repo $PWD --color never --format json`. reviewable_count>=6 → workflow open-code-review. Depth 3 ocr review only if ocr llm test green non-interactive. Do not steal bundled /review.
+
+NEXT UNUSED: WAVE 1a bars_raw rebuild. Evidence: .trident/wave-audit/cycle-v5-t1/
