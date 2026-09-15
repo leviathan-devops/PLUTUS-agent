@@ -35,5 +35,5 @@ WAVES: 4
 
 ## WAVE 4 — legal stop (PR vs main)
 - deliverable: commits on plutus/grok-prototype + request-pull / PR text vs plutus/main
-- GATE: PASS request-pull vs e99377f (pr.txt); 14 commits 5cd7af1..52a310d on grok-prototype; OCR 443 vs-main 431 LIVE-skip + 12 grok-delta workflow; 5/5 storyline + frozen + D13; G1/G4 residuals still FAIL (DIAG_EXIT=1, not silent); main untouched
+- GATE: PASS request-pull vs e99377f (pr.txt); 19 commits 5cd7af1..3e577dc on grok-prototype; OCR 444 vs-main 431 LIVE-skip + 13 grok-delta wave4-ocr-priority-10 confirmed=[]; 5/5 storyline + frozen + D13; G1/G4 residuals still FAIL (DIAG_EXIT=1, not silent); main untouched e99377f
 - bundled /review only if a GitHub PR exists; this repo has no origin yet
