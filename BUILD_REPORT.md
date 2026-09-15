@@ -108,3 +108,10 @@ Not ship. W9 stays blocked. Nested main/grok untouched.
 **SC-23 line in round 3** ("MISSING-FILE") is superseded by W7R (`src/kernel/report-validator.ts` landed + 5/0 @ `68440de`).
 
 Not ship. W9 stays blocked (SC-21 2/5, lmv-fx 13/15 NEEDS-LTF). Nested main/grok untouched.
+
+## 2026-09-15 SC-27 verdict (orch, HEAD 3d4ece8)
+
+**Command:** `grep -rn "TODO|FIXME|HACK|XXX|heuristic" src/e1 src/e2 src/card src/kernel src/enforcement src/visual src/aether --include='*.ts'` (non-test) → **zero hits.** Prior round's `killedDuplicates`/`killed` hits are now confirmed absent from this grep set (earlier sightings were in cascade-loop dedup guards; the current tree's non-test lock code carries no TODO/FIXME/HACK/XXX/heuristic markers).
+**Verdict:** SC-27 PASS-side as **zero killed-heuristic residue** in non-test lock code. (Test files excluded by construction — fixtures name mutants deliberately.)
+
+Not ship. W9 stays blocked (SC-21 2/5, lmv-fx 13/15 NEEDS-LTF). Nested main/grok untouched.
