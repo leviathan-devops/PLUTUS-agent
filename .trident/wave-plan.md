@@ -10,7 +10,7 @@ WAVES: 4
 - owner: orch + 1 bars desk
 - files: scripts that rebuild /tmp/opencode/bars_raw.json · FutureBarLeak sites · NOT src/mdve/sl-lmv.ts
 - deliverable: bars_raw from Vibe 4H+1H + Air 1H weeks 2026-07-06 (all bars t<=1783317600000)
-- GATE: FutureBarLeak throws on t>anchor; frozen pair sha match; bun test src/jesl/ HELLO-GATE ALL GREEN
+- GATE: PASS f0f790a — FutureBarLeak throws on t>anchor; frozen pair sha match; bun test src/jesl/ HELLO-GATE ALL GREEN; bars_raw sha bd09f2b88ccaffd66a1f034c1c05147703ab98cf8bf40fcd8ea1b37965cfeb5c dual-match max t===1783317600000
 - OCR: skip (no product kernel rewrite yet)
 
 ## WAVE 1b — W0 spec corpus
