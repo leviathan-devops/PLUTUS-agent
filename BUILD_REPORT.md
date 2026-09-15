@@ -184,3 +184,12 @@ Not ship. Goal active.
 **Walls:** enforcement 77/0 · src 1195/0 · e1 398/0 · tsc clean · frozen MATCH · SC-26 still 0. Honest seam recorded: SC table's "LOGIC-LSP query" phrasing vs the ported machinery's lexicon+escalation+graph findings — manifest is the true ported-machinery output (`.trident/wave-audit/SC24.md`).
 
 Not ship. Reds: SC-21 1/5 + OUTCOME 0/4 + GATE-CLASS gate 2 (2 operator doctrine rulings, F4B audit) · product_tui (gated) · SC-25 coverage leg (operator week-2 fixtures). Goal active.
+
+## 2026-09-15 WK1 full-week V5 golden measured (orch audit, HEAD b1c61d7)
+
+**First full-week V5-chain golden measurement on corrected data** (`real-week-runner.ts` — the G3 real-data diag, D13 ORACLE_ISOLATION held; one-line self-containment path fix; walls 46/0 + tsc clean + frozen MATCH).
+**Score: 1/17 HIT ≤3p · 1/17 ≤5p · 4/17 ≤10p · 13 MISS · 0 NO_COVERAGE** (8 EU + 7 GU + 2 DXY-Monday rows). v4.5.3 fingerprint was 12/21 ≤3p · 16/21 ≤5p · 19/21 ≤10p (denominator seam honest: /21 rows are not defined in this harness — framings never blended).
+**Structural cause (quoted from output):** the chain emits 2-4 **Monday-anchored** projections per pair (ST-*-0/1) and holds them all week — Tue-Fri rows score only by coincidence. The v4.5.3 regime re-designated per day. Candidate owners: e2 freshness/workflow machines, or the runner's shapeChains input (fixture shapeChains, "the operator's read, an input not oracle" — runner :110) feeding only Monday shapes.
+**Doctrine question #3 (operator):** does the V5 chain re-designate per day (the v4.5.3 regime behind the 12/21 fingerprint) or designate once per week? This owns SC-10/SC-18/SC-25's ≥15/21 legs through the V5 chain, independent of the two Monday questions.
+
+Not ship. Goal active.

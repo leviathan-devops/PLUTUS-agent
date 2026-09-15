@@ -31,7 +31,7 @@ F4 (712c3de): LTF harvest, slots filled, lmv-fx 13→14 · F4B (f8d9dca): causal
 ## Honest gaps
 
 - SC-21 5/5 NOT met (1/5) — blocked on the two rulings above; R29 forbids hardcoding the Monday levels.
-- SC-25: ratio+floor legs PASS on the golden week (multiweek harness 15/15 wins, `MW-ROW|2026-07-06|…|FLOOR_OK`); multi-week coverage leg data-blocked (1 < 2 weeks — non-golden week oracle fixtures are operator-owned); comparator is the harness's documented E1-convergence seam, not ≤3p. Named residual: the two doctrine questions above.
+- SC-25: multiweek harness ratio+floor PASS (15/15 E1-convergence, golden week); **V5-chain full-week golden measured @ WK1: 1/17 ≤3p** (structural cause: week-frozen Monday projections — the v4.5.3 12/21 regime re-designated per day). Coverage leg still data-blocked (1 < 2 weeks). Doctrine question #3 added: per-day vs per-week designation in the V5 chain. Named residual: F4B questions #1+#2 + WK1 question #3.
 - Harness side-effects: `MASTER_CONTEXT/plutus-reasoning-failures.db` appends + `Visual_Evals/` reports on every diag run — store growth ≠ pipeline change.
 - SC-24: COMPLETED @ 61635a7 — conformance machinery ported into the kernel lock (vendored graph client), profile.yaml armed verbatim, gate measured **CONFORMANT / 0 findings (earned)** on the 12 touched kernel files after verbatim law-quote attribution (SPEC:1338-1341, 2006). Negative controls prove the checker real.
 
