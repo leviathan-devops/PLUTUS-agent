@@ -19,3 +19,9 @@ Mechanism of the old blocker: bars fixture was a pointer doc (`barsPointer`) wit
 Broker-map gotcha (the real trap): overlay's documented map was WRONG at runtime — `EURUSD/ICE` and `ICEMARKETS:EURUSD` return zero bars; the live ICE composite is `FX_IDC:EURUSD`. Measure the exchange list on first live use, never assert the doc.
 LTF data is NOT monotone-positive: filling the slots improved lmv-fx (13→14, TP 2/2) but Monday went 2/5 → 1/5 (DXY SHORT flipped HIT→NONE; GU LONG Δ84.4p). Data absence was masking a real pipeline delta.
 Lesson: an A/B fixture diff (bak-f4 vs current) through the golden diag is the required next evidence before any entry-selection fix — never tune against a fixture whose input just changed under it.
+
+## 2026-09-15 F4B (forensics) + F4C (outcome-window) — two lessons
+
+Lesson 1 — fixture slicing scope: "slice to the anchor" is an ANALYSIS-consumption rule (`barsFor` filters at `report-v452.ts:327`), NOT a storage rule. Pre-slicing the fixture starved the outcome sim (`simBarsFor` reads 1H unsliced, `:329-331`) and vacuated G8's negative control (golden-gate.ts:322-333: vacuous iff no beyond-bars). The canon fixture spans 04-30→07-10T17:00; post-anchor bars in storage are REQUIRED and leak-safe because consumers self-slice. Never re-slice at storage.
+Lesson 2 — fixture invariance proof pattern: after any fixture change, diff the analysis outputs (Monday convergence lines byte-identical + anchor digests + negative control UNCHANGED) BEFORE reading any new gate numbers. F4C moved G8 7/10→8/10 and OUTCOME 0/0→0/4 with analysis byte-identical — that ordering is what makes the new numbers trustworthy.
+Both audits: `.trident/wave-audit/F4B.md`, `.trident/wave-audit/F4C.md`.

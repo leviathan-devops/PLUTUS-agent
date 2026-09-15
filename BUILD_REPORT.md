@@ -125,3 +125,14 @@ Not ship. W9 stays blocked (SC-21 2/5, lmv-fx 13/15 NEEDS-LTF). Nested main/grok
 **Gates:** gate0 PASS (12 slots / 26143 bars) · tsc clean · FUTURE_BAR_LEAK sweep `[]` · G8 control non-vacuous · frozen MATCH.
 
 Not ship. Monday reds are now REAL pipeline deltas (not data-absence). Next pointer: F4B per-level PRE-vs-POST causal diff before any fix desk.
+
+## 2026-09-15 CORRECTION to the F4 entry above (D13)
+
+The F4 entry's "DXY SHORT flipped HIT→NONE" is **refuted by captures** (`.trident/wave-audit/F4B.md`): PRE 2/5 = DXY LONG + **GU LONG** HIT (`/tmp/f4b_pre_diag.txt:68`: `GBP/USD LONG E 1.33343 Δ1.3p (HIT)`). The lost HIT is **GU LONG** (now Δ84.4p). DXY SHORT was MISS Δ20.4p PRE → MISSING POST (lawful ADM refusal, RRR 2.60 < 3.0 floor). Corrections are new entries; the original text stands as written-then-refuted.
+
+## 2026-09-15 F4B + F4C (orch audits, HEADs f8d9dca / 028408a)
+
+**F4B (read-only causal diff, all five levels verdict (b) operator-owned):** DXY LONG stable Δ2.7p HIT; DXY SHORT E2 redesignation 100.945 BoM→100.913 MoM then lawful RRR-floor refusal; EU SHORT rescued NONE→Δ6.1p; EU LONG Law-27 chained-interior into 30m receiver Δ11.2p (**doctrine question #1**: chained-interior vs LMV-fortress for the EU #2 slot); GU LONG newly-enabled valid SHORT chains into 30m receiver, WL 1.33380 abandoned (**doctrine question #2**: diverged-lane chaining guard, `reasoning-chain.ts:2152-2159/2185-2192` — code obeyed Law 27 as written). 15m caps exculpatory; cascade divergence 0.00 both runs (R12/D98 clean at macro level).
+**F4C (outcome-window harvest):** fixture extended to the canon span 2026-04-30→2026-07-10T17:00Z, all 12 slots, zero cap gaps; DXY 1H n=1228 / 4H n=428 = the skill's expected ranges exactly. `scripts/fetch-bars.ts --until` parameterization (foundation lock). **Analysis invariance PROVEN** (Monday lines byte-identical, anchor digests unchanged, negative control held — no leak). **G8 FAIL→PASS** (beyond-bars present, non-vacuous). **G-count 8/10** (only pre-existing G1/G4). **OUTCOME resolves**: 0/4 wins (all SL-hit, TRUE count, gate FAIL honestly). A1-A7 7/7. New report baseline `53d7f9d8…` ×2 deterministic.
+
+Not ship. Remaining reds are operator-owned doctrine rulings (2 questions in F4B audit) + SC-25 multi-week measure + product_tui. Goal active.
