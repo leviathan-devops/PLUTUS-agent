@@ -176,3 +176,11 @@ Every measurable SC re-run at current HEAD after the fixture upgrade + re-axis:
 Still red, all doctrine-blocked (F4B audit): SC-21 1/5, OUTCOME 0/4 (measurable, TRUE), GATE-CLASS gate 2 (G1/G4 + Monday), product_tui (gated). SC-25: ratio+floor PASS, coverage data-blocked. SC-24: infra-unrunnable (graph client). SC-11/SC-22: covered by W4/W6 audits + src wall.
 
 Not ship. Goal active.
+
+## 2026-09-15 SC-24 COMPLETED (orch audits, HEAD 61635a7)
+
+**Closed the W8 honest residual** ("not runnable — ../graph/client.js missing"). Ported the overlay's conformance machinery into the kernel lock: `src/enforcement/{conformance,conformance.test,graph-client,graph-types}.ts` (vendored client — src/graph is not a dispatchable path) + `profile.yaml` armed VERBATIM at tree root (operator-curated Bug-Hunter profile, sha `e163c890…`).
+**Gate measured:** first run NONCONFORMANT with exactly 1 LOW finding (`provenance.doctrine-attribution` @ `l5-ti-graph.ts:2` — law IDs claimed without quotes) — reported, nothing tuned. LAW-7/10/12/14 + RRR floor then quoted VERBATIM (V5 SPEC:1338-1341, 2006; cross-checked S-3/S-5/doctrine-register). **Re-run: CONFORMANT, findings_count=0 — earned** (orch re-run; negative controls: vacuous zero refused, planted violation caught CRITICAL, null content INCONCLUSIVE).
+**Walls:** enforcement 77/0 · src 1195/0 · e1 398/0 · tsc clean · frozen MATCH · SC-26 still 0. Honest seam recorded: SC table's "LOGIC-LSP query" phrasing vs the ported machinery's lexicon+escalation+graph findings — manifest is the true ported-machinery output (`.trident/wave-audit/SC24.md`).
+
+Not ship. Reds: SC-21 1/5 + OUTCOME 0/4 + GATE-CLASS gate 2 (2 operator doctrine rulings, F4B audit) · product_tui (gated) · SC-25 coverage leg (operator week-2 fixtures). Goal active.
