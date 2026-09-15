@@ -115,3 +115,13 @@ Not ship. W9 stays blocked (SC-21 2/5, lmv-fx 13/15 NEEDS-LTF). Nested main/grok
 **Verdict:** SC-27 PASS-side as **zero killed-heuristic residue** in non-test lock code. (Test files excluded by construction — fixtures name mutants deliberately.)
 
 Not ship. W9 stays blocked (SC-21 2/5, lmv-fx 13/15 NEEDS-LTF). Nested main/grok untouched.
+
+## 2026-09-15 F4 LTF harvest (orch audit, HEAD 712c3de)
+
+**Wave:** F4 (foundation lock) — desk `F4Harvest` 23m12s. Audit: `.trident/wave-audit/F4.md` (all cells first-hand re-run).
+**Closed:** the 30m/15m n=0 GAP. All six slots now REAL broker-corrected TV bars, sliced to ≤ anchor 1783317600000: DXY 15m 2299 / 30m 6041 · EU 15m 317 / 30m 6286 · GU 15m 325 / 30m 6307. 1H/4H untouched.
+**Broker map (measured live):** DXY=TVC (ICE index) · EUR/USD=FX_IDC (ICE composite; EURUSD/ICE + ICEMARKETS dead) · GBP/USD=OANDA. Dependency salvaged from GitHub fork (upstream PyPI deleted).
+**A/B (both re-run by orch):** lmv-fx 13/15 → **14/15** entries, TP 1/2 → **2/2**. Monday 2/5 → **1/5** (DXY LONG 100.945 Δ2.7p HIT; DXY SHORT flipped to NONE; EU S Δ6.1p · EU L Δ11.2p · GU L Δ84.4p MISS). SC-20 sha `677c4b23…` ×2 deterministic.
+**Gates:** gate0 PASS (12 slots / 26143 bars) · tsc clean · FUTURE_BAR_LEAK sweep `[]` · G8 control non-vacuous · frozen MATCH.
+
+Not ship. Monday reds are now REAL pipeline deltas (not data-absence). Next pointer: F4B per-level PRE-vs-POST causal diff before any fix desk.

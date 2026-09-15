@@ -11,3 +11,11 @@ Mechanism: fortress DEMAND [1.14004-1.14147] exists; lmv.table has 0 BUY_SIDE ro
 Tried: W9EuLmv (no rungs); W9LqzNest (reaction gate BODY_DEFEND only / SELL_SIDE vote). Stopped — no lmv.ts/lqz-matrix.ts edit (R29).
 Verification: rebuild-fixture 6 GAP; golden G7 2/5; frozen MATCH; Checkpoints/v5-W9-converge absent.
 Lesson: do not mint v5-W9-converge on a red SC-21. Do not harvest live TV into the 2026-07-06 fixture.
+
+## 2026-09-15 F4 (supersedes the W9-era "do not harvest" lesson)
+
+Symptom: fixture 30m/15m n=0 across all pairs; lmv-fx 13/15, Monday 2/5 attributed to NEEDS-LTF.
+Mechanism of the old blocker: bars fixture was a pointer doc (`barsPointer`) with the harvest named as the F4 fix but never run — the earlier "do not harvest live TV" lesson feared fabricated/misaligned candles derailing golden. F4 disproved the fear mechanism: real broker-corrected bars + anchor slice (`ts <= 1783317600000`) keep gate0, SC-20 determinism (`677c4b23…` ×2) and the G8 forward-read control all green.
+Broker-map gotcha (the real trap): overlay's documented map was WRONG at runtime — `EURUSD/ICE` and `ICEMARKETS:EURUSD` return zero bars; the live ICE composite is `FX_IDC:EURUSD`. Measure the exchange list on first live use, never assert the doc.
+LTF data is NOT monotone-positive: filling the slots improved lmv-fx (13→14, TP 2/2) but Monday went 2/5 → 1/5 (DXY SHORT flipped HIT→NONE; GU LONG Δ84.4p). Data absence was masking a real pipeline delta.
+Lesson: an A/B fixture diff (bak-f4 vs current) through the golden diag is the required next evidence before any entry-selection fix — never tune against a fixture whose input just changed under it.
