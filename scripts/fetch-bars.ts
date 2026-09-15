@@ -32,7 +32,9 @@
  *   bun scripts/fetch-bars.ts --out=<path>       — output path (default = the tmpdir/opencode/bars_raw.json)
  *   bun scripts/fetch-bars.ts --pairs=EUR/USD,GBP/USD — the pair filter (partial re-fetch)
  *   bun scripts/fetch-bars.ts --broker=AUD/USD:OANDA — the broker override for a PROPOSED pair
- *   unknown flags are ignored with a logged note (never a silent crash)
+ *   bun scripts/fetch-bars.ts --until=2026-07-10T17:00:00Z (or --until=<ms>) — the F4C
+ *     fetch reference: bars with timestamp > until are dropped post-fetch (counted
+ *     in the reason); default = no slice (consumers slice: report-v452.ts:327)
  *
  * THE DEPENDENCY (HONEST):
  *   The JS `tvdatafeed` port is ABSENT from node_modules and package.json
@@ -57,6 +59,15 @@
  * F4 ADDENDUM (2026-09-15, god-loop-foundation): fills the six empty 15m/30m
  * slots — slice EVERY bar list to timestamp <= ANCHOR_MS 1783317600000 first.
  * Broker map: DXY:TVC (the ICE index) EUR/USD:ICE GBP/USD:OANDA. n_bars>=5000.
+ *
+ * F4C ADDENDUM (2026-09-15, F4C-outcome): extends ALL TWELVE slots through the
+ * outcome window to 2026-07-10T17:00Z (1783702800000) — NO anchor-slicing.
+ * The --until=<iso|ms> flag sets the fetch reference (bars with timestamp >
+ * until are dropped post-fetch, counted, never silently kept). Default: null
+ * (no slice — the consumers slice themselves: report-v452.ts:327 barsFor
+ * filters b.timestamp <= ANCHOR_MS at consumption while simBarsFor reads the
+ * 1H series unsliced). Broker map (measured live): DXY:TVC, EUR/USD:FX_IDC,
+ * GBP/USD:OANDA. n_bars>=6000 per cell; 1H must span 2026-04-30 -> 07-10.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -349,6 +360,8 @@ interface CliOptions {
   outPath: string;
   pairFilter: Set<string> | null;
   brokerOverrides: Record<string, string>; // e.g. { 'AUD/USD': 'OANDA' }
+  /** F4C: fetch reference — bars with ts > untilMs are dropped post-fetch. */
+  untilMs: number | null;
   ignored: string[];
 }
 
@@ -363,6 +376,7 @@ function parseArgs(argv: string[]): CliOptions {
     outPath: DEFAULT_OUT,
     pairFilter: null,
     brokerOverrides: {},
+    untilMs: null,
     ignored: [],
   };
   for (let i = 0; i < argv.length; i++) {
@@ -383,11 +397,33 @@ function parseArgs(argv: string[]): CliOptions {
       const pair = (kv[0] ?? '').trim();
       const broker = (kv[1] ?? '').trim().toUpperCase();
       if (pair && broker) opts.brokerOverrides[pair] = broker;
+    } else if (a.startsWith('--until=')) {
+      opts.untilMs = parseUntil(a.slice('--until='.length));
+      if (opts.untilMs === null) opts.ignored.push(a);
+    } else if (a === '--until') {
+      opts.untilMs = parseUntil(argv[i + 1] ?? '');
+      if (opts.untilMs === null) opts.ignored.push(a);
+      else i++;
     } else {
       opts.ignored.push(a);
     }
   }
   return opts;
+}
+
+/**
+ * F4C: parse the --until reference (<iso|ms>). Returns the unix-ms number,
+ * or null when unparseable (the caller records the raw flag as ignored).
+ */
+function parseUntil(raw: string): number | null {
+  const s = (raw ?? '').trim();
+  if (!s) return null;
+  if (/^-?\d+$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -415,6 +451,7 @@ function printMatrix(opts: CliOptions): void {
   }
   console.log('---');
   console.log('OUT  : ' + opts.outPath);
+  console.log('UNTIL: ' + (opts.untilMs === null ? '(none — consumers slice themselves)' : `${opts.untilMs} (${new Date(opts.untilMs).toISOString()})`));
   console.log('REMEDY (live run): install the feed first — bun add tvdatafeed');
 }
 
@@ -445,6 +482,21 @@ async function main(): Promise<number> {
     const broker = effectiveBroker(pair, opts.brokerOverrides);
     for (const tf of TIMEFRAMES) {
       const cell = await fetchCell(pair, tf, broker);
+      // F4C: the --until reference (drop post-until bars post-fetch, counted).
+      if (cell.ok && opts.untilMs !== null && cell.entry.bars.length > 0) {
+        const before = cell.entry.bars.length;
+        cell.entry.bars = cell.entry.bars.filter((b) => b.timestamp <= opts.untilMs!);
+        const dropped = before - cell.entry.bars.length;
+        if (dropped > 0) cell.reason = ((cell.reason ? cell.reason + '; ' : '') + `${dropped} post-until bar(s) dropped (>${opts.untilMs})`);
+        if (cell.entry.bars.length === 0) {
+          cell.ok = false;
+          failCells++;
+          cell.entry.error = `[UNTIL] ${pair} ${tf.id}: every fetched bar is past the --until reference ${opts.untilMs} (${new Date(opts.untilMs).toISOString()}).`;
+          console.error(`[FETCH] ${pair} ${tf.id}  FAIL  ${cell.entry.error}`);
+          entries.push(cell.entry);
+          continue;
+        }
+      }
       entries.push(cell.entry);
       if (cell.skipped) {
         skipCells++;
