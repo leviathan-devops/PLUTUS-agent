@@ -306,7 +306,7 @@ if (isMain) {
       for (const pr of p.projections) console.log(`   PROJECTION ${pr.id} ${pr.direction} @ ${pr.level} rr=${pr.rr}`);
       for (const t of p.machineTrail) console.log(`   trail: ${t}`);
     }
-    const oracle = readOracleRows("/home/leviathan/OPENCODE_WORKSPACE/Shared Workspace Context/Trident_Agent/Active_Projects/Plutus_Agent/specs/fixtures/golden-week.json");
+    const oracle = readOracleRows(new URL("../fixtures/golden-week.json", import.meta.url).pathname);
     const rows = diag(out1, oracle);
     console.log(`\n== GOLDEN DIAG (17 oracle rows: 8 EU + 7 GU + 2 DXY Monday) ==`);
     let hits = 0, near = 0, miss = 0, nc = 0;
