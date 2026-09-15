@@ -1,4 +1,4 @@
-/goal ORCHESTRATOR only — do not write product code. CWD git root /home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/agent on nested repo plutus/main (NOT parent Shared_Workspace autoresearch/puffer-20250915). ABSORB first-hand this turn: hydra/MASTER_PROMPT.md hydra/PATHS.md hydra/SCOPE-foundation.md hydra/SCOPE-e1.md hydra/SCOPE-e2.md hydra/SCOPE-cardvis.md hydra/SCOPE-kernel.md MASTER_CONTEXT/PLUTUS_MASTER_CONTEXT_INJECTOR.md §0-§1 MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md §1-§8 Checkpoints/v4.5.3_CLEAN_BASELINE/MANIFEST.md. State git SHA + frozen pair + empty-lock-dir truth without re-reading. PREFLIGHT yourself: git rev-parse --abbrev-ref HEAD must be plutus/main; sha256sum src/mdve/sl-lmv.ts src/mdve/trade-dedup.ts must be 912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab and 33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4; bun test at pin is 0 files (not green). Red frozen or wrong branch = stop, fix, re-run. No dispatch on red. DISPATCH via default.task ONE batch, DPL1-grade prompts, disjoint existing paths. Interface waves first. BOUNDARIES: bun run typecheck on combined tree before dependents. AUDIT every return into .trident/wave-audit/<wave>.md hunk verdicts CORRECT/FLAWED/FITTED-TO-GOLDEN/SCOPE-CREEP; unaudited stays in_progress on default.todo. RED-TEAM ≥3 adversarial (FUTURE_BAR_LEAK, SIDE_INVERSION_VIOLATION, CARD_INVALID) with tool-result tokens before happy path. VISION: native read on chart PNGs PASS/FLAW/BLOCKED; no external-VLM-only. RECORD BUILD_REPORT.md DEBUG_LOG.md after every audited wave; checkpoints Checkpoints/v5-W<n>-<state> hyphens only; git add that path never git add -A. STAMP COMPLETE only on ship bar: frozen MATCH + GATE-CLASS green + SC-21 Monday 5/5 ≤3p + SC-25 ≥15/21 + SC-26 zero price-anchors + product_tui container-testing after GATE-CLASS. Never Achieved on a sub-inner. AUTONOMY: no permission-asking; overlay vendor-in then rewrite-to-spec; TV stub FAIL until headed W4; report TS default. Locks own files in PATHS.md. Frozen pair is FIREWALL. Quote D13 R1 R2 R3. OMP-native only: default.task default.todo default.hub default.bash default.read default.container-testing. Ban trident-poseidon trident-scout trident-build trident-wave-manager todowrite /poseidon. Parent puffer branch is not this repo.
+/goal ORCHESTRATOR only — do not write product code. Session cwd /home/leviathan/.omp/wt/plutus-main-66dfa4c on Shared_Workspace branch omp-worker-1. V5 write root /home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent nested git branch omp-worker-1 (do not touch nested plutus/main or plutus/grok-prototype). Parent gitignore PLUTUS/agent/ so puffer never receives V5 files. ABSORB first-hand this turn: hydra/MASTER_PROMPT.md hydra/PATHS.md hydra/SCOPE-foundation.md hydra/SCOPE-e1.md hydra/SCOPE-e2.md hydra/SCOPE-cardvis.md hydra/SCOPE-kernel.md MASTER_CONTEXT/PLUTUS_MASTER_CONTEXT_INJECTOR.md §0-§1 MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md §1-§8 Checkpoints/v4.5.3_CLEAN_BASELINE/MANIFEST.md. State git SHA + frozen pair + empty-lock-dir truth without re-reading. PREFLIGHT yourself: git -C PLUTUS/agent rev-parse --abbrev-ref HEAD must be omp-worker-1; sha256sum src/mdve/sl-lmv.ts src/mdve/trade-dedup.ts must be 912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab and 33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4; bun test at pin is 0 files (not green). Red frozen or wrong branch = stop, fix, re-run. No dispatch on red. DISPATCH via default.task ONE batch, DPL1-grade prompts, disjoint existing paths. Interface waves first. BOUNDARIES: bun run typecheck on combined tree before dependents. AUDIT every return into .trident/wave-audit/<wave>.md hunk verdicts CORRECT/FLAWED/FITTED-TO-GOLDEN/SCOPE-CREEP; unaudited stays in_progress on default.todo. RED-TEAM ≥3 adversarial (FUTURE_BAR_LEAK, SIDE_INVERSION_VIOLATION, CARD_INVALID) with tool-result tokens before happy path. VISION: native read on chart PNGs PASS/FLAW/BLOCKED; no external-VLM-only. RECORD BUILD_REPORT.md DEBUG_LOG.md after every audited wave; checkpoints Checkpoints/v5-W<n>-<state> hyphens only; git add that path never git add -A. STAMP COMPLETE only on ship bar: frozen MATCH + GATE-CLASS green + SC-21 Monday 5/5 ≤3p + SC-25 ≥15/21 + SC-26 zero price-anchors + product_tui container-testing after GATE-CLASS. Never Achieved on a sub-inner. AUTONOMY: no permission-asking; overlay vendor-in then rewrite-to-spec; TV stub FAIL until headed W4; report TS default. Locks own files in PATHS.md. Frozen pair is FIREWALL. Quote D13 R1 R2 R3. OMP-native only: default.task default.todo default.hub default.bash default.read default.container-testing. Ban trident-poseidon trident-scout trident-build trident-wave-manager todowrite /poseidon. Parent puffer branch is not this repo.
 
 /workflow god-loop-foundation
 /workflow god-loop-e1
@@ -7,7 +7,7 @@
 /workflow god-loop-kernel
 
 HONEST_CLASS=product_tui DENSITY=multi_dimension N=5 WAVES=10
-ANCHOR=/home/leviathan/JARVIS_WORKSPACE/Shared_Workspace/PLUTUS/agent
+ANCHOR=/home/leviathan/.omp/wt/plutus-main-66dfa4c/PLUTUS/agent
 MASTER=hydra/MASTER_PROMPT.md
 PATHS=hydra/PATHS.md
 SCOPE_foundation=hydra/SCOPE-foundation.md
@@ -18,17 +18,18 @@ SCOPE_kernel=hydra/SCOPE-kernel.md
 SPEC=MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md
 INJECTOR=MASTER_CONTEXT/PLUTUS_MASTER_CONTEXT_INJECTOR.md
 MANIFEST=Checkpoints/v4.5.3_CLEAN_BASELINE/MANIFEST.md
-GIT_HEAD_AT_PIN=plutus/main@282b1a3
+GIT_HEAD_AT_PIN=omp-worker-1@175df20
 OVERLAY_COPY_SOURCE=plutus/pre-v5-overlay@f5ee436
 
 PREFLIGHT (goal re-runs; expected at pin):
-- git rev-parse --abbrev-ref HEAD → plutus/main
+- git -C PLUTUS/agent rev-parse --abbrev-ref HEAD → omp-worker-1
+- git rev-parse --abbrev-ref HEAD (session) → omp-worker-1
 - sha256sum src/mdve/sl-lmv.ts → 912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab
 - sha256sum src/mdve/trade-dedup.ts → 33914c897e7775402eefd7d13a5d3675667a2ace576b55a689bc864401a680e4
 - find src -name '*.ts' | wc -l → 149 at pin (grows later)
 - bun test → 0 test files at pin (NOT PASS; W1 must land tests)
 - test -f MASTER_CONTEXT/PLUTUS_V5_FULL_BUILD_SPEC.md → exit 0
-RED = frozen mismatch OR branch ≠ plutus/main OR spec missing. Stop.
+RED = frozen mismatch OR V5 branch ≠ omp-worker-1 OR spec missing. Stop.
 
 WAVES: 10
 - W0 foundation: S-1..S-7 + battery.json + golden-week.json + mutants | files: specs/mpse/** specs/fixtures/** | gate: 7 S-files; battery.json parses; 40/13 mutant CONTRADICTED not PASS
@@ -50,7 +51,7 @@ LOCK WRITE SETS (DISJOINT — SCOPE-CREEP if crossed):
 - kernel: src/kernel src/enforcement
 ORCH READ-ONLY: package.json bun.lock tsconfig* src/types.ts src/index.ts src/mdve/sl-lmv.ts src/mdve/trade-dedup.ts MASTER_CONTEXT Checkpoints hydra
 
-COPY-SOURCE RULE: git show plutus/pre-v5-overlay:src/<path> to read. Port into lock dir. NEVER git checkout overlay -- src/ onto main.
+COPY-SOURCE RULE: git show plutus/pre-v5-overlay:src/<path> to read. Port into lock dir. NEVER git checkout overlay -- src/ onto omp-worker-1. NEVER checkout nested plutus/main or grok-prototype.
 
 FROZEN FIREWALL every wave:
 912940832fac44bc838d53423cbb921eff501de60a9f2641bf20c1d1497eaeab  src/mdve/sl-lmv.ts
@@ -159,12 +160,12 @@ src/substrate src/runtime src/enforcement specs/mpse specs/fixtures
 specs/harness scripts hydra .trident/wave-audit
 Do not dispatch against paths that are not in this list or PATHS.md.
 
-PARENT vs NESTED GIT (standing):
-Session status bar = Shared_Workspace branch autoresearch/puffer-20250915.
-V5 history = nested PLUTUS/agent plutus/main.
-gitignore parent PLUTUS/agent/ so puffer never receives this tree.
-Optional extra branches: git worktree add .worktrees/<name> -b plutus/<name>
-from the agent root. That does not change the status bar.
+SESSION vs V5 GIT (standing):
+Session cwd = ~/.omp/wt/plutus-main-66dfa4c branch omp-worker-1 (Shared_Workspace repo, puffer commit 7f04470).
+V5 write root = ./PLUTUS/agent nested worktree branch omp-worker-1 @ e99377f.
+nested plutus/main stays at Shared_Workspace/PLUTUS/agent @ e99377f — do not check it out.
+plutus/grok-prototype stays at agent/.worktrees/grok-prototype @ a3ae152 — do not touch.
+Parent gitignore PLUTUS/agent/ so V5 commits never enter puffer.
 
 W0 FILE MANIFEST (foundation must land these names):
 specs/mpse/S-1-cascade-law.md
@@ -221,7 +222,7 @@ v5-W3-e2-machines
 v5-W5-card-schema
 v5-W6-kernel
 v5-W9-converge
-git add "Checkpoints/<TOKEN>" then commit on plutus/main.
+git add "Checkpoints/<TOKEN>" then commit on omp-worker-1.
 Secret scan first. No provider keys.
 
 KNOWN-BAD FIXTURES (must refuse):
@@ -235,7 +236,7 @@ DEFAULT FORKS (do not ask):
 overlay: copy-then-rewrite to V5 spec
 TV: stub GRADE:FAIL until headed W4 can run
 report: TypeScript port of Leviathan template
-worktrees: stay on plutus/main unless a lock needs isolation
+worktrees: stay on omp-worker-1; never grok-prototype or nested plutus/main
 V6/Orca/LuxAlgo: out of scope this pin
 
 COMPACTION ANCHOR:
