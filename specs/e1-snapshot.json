@@ -1,0 +1,460 @@
+{
+  "meta": {
+    "week": "2026-07-06",
+    "analysisPointMs": 1783317600000,
+    "run": "f288470962db80f9",
+    "barsSource": "synthetic mulberry32 seed=20260706 (bars_raw.json absent — substitution recorded)",
+    "seams": [
+      "SEAM-ADAPTER: helpers.adaptBarsOrThrow stands in for src/e1/adapters/MarketDataAdapter",
+      "SEAM-OBCV: helpers.detectZonesObcv stands in for src/e1/adapters/OBCVEngine",
+      "SEAM-ACTORS: zoneMapActor/pressureActor absent — verdicts journaled directly"
+    ],
+    "journalChainValid": true
+  },
+  "snapshots": {
+    "EUR/USD": {
+      "pair": "EUR/USD",
+      "bars": 120,
+      "zones": [
+        "EUR/USD|1H|1782921600000|1.13800",
+        "EUR/USD|1H|1783029600000|1.14700",
+        "EUR/USD|1H|1783137600000|1.13980",
+        "EUR/USD|1H|1783245600000|1.14880"
+      ],
+      "zoneDetail": [
+        {
+          "id": "EUR/USD|1H|1782921600000|1.13800",
+          "type": "DEMAND",
+          "top": 1.1461000000000001,
+          "bottom": 1.1380000000000001,
+          "classification": "BoM",
+          "formationMs": 1782921600000,
+          "originIdx": 10,
+          "bw": 80.99999999999996,
+          "bf": 0.6666666666666758,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "EUR/USD|1H|1783029600000|1.14700",
+          "type": "SUPPLY",
+          "top": 1.147,
+          "bottom": 1.1389,
+          "classification": "BoM",
+          "formationMs": 1783029600000,
+          "originIdx": 40,
+          "bw": 80.99999999999996,
+          "bf": 0.6666666666666758,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "EUR/USD|1H|1783137600000|1.13980",
+          "type": "DEMAND",
+          "top": 1.1479000000000001,
+          "bottom": 1.1398000000000001,
+          "classification": "BoM",
+          "formationMs": 1783137600000,
+          "originIdx": 70,
+          "bw": 80.99999999999996,
+          "bf": 0.6666666666666758,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "EUR/USD|1H|1783245600000|1.14880",
+          "type": "SUPPLY",
+          "top": 1.1488,
+          "bottom": 1.1407,
+          "classification": "BoM",
+          "formationMs": 1783245600000,
+          "originIdx": 100,
+          "bw": 80.99999999999996,
+          "bf": 0.6666666666666758,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        }
+      ],
+      "verdicts": [
+        {
+          "pattern": "candle-pressure:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/candle-pressure.ts",
+            "machine": "candle-pressure",
+            "confidence": 0.6666666666666666,
+            "detail": "longWickWithoutReversal"
+          }
+        },
+        {
+          "pattern": "candle-shape:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/candle-shape.ts",
+            "machine": "candle-shape",
+            "confidence": 0.5,
+            "detail": "rwlSignature"
+          }
+        },
+        {
+          "pattern": "zone-classification:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/zone-classification.ts",
+            "machine": "zone-classification",
+            "confidence": 0.75,
+            "detail": "priorOppositeOrNone"
+          }
+        },
+        {
+          "pattern": "zone-pressure:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/zone-pressure.ts",
+            "machine": "zone-pressure",
+            "confidence": 0.75,
+            "detail": "virginZone"
+          }
+        },
+        {
+          "pattern": "shape-chain:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/shape-chain.ts",
+            "machine": "shape-chain",
+            "confidence": 0.6666666666666666,
+            "detail": "singleBsCandle"
+          }
+        },
+        {
+          "pattern": "obvious-trades:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/obvious-trades.ts",
+            "machine": "obvious-trades",
+            "confidence": 0.5,
+            "detail": "aggregate"
+          }
+        }
+      ]
+    },
+    "GBP/USD": {
+      "pair": "GBP/USD",
+      "bars": 120,
+      "zones": [
+        "GBP/USD|1H|1782921600000|1.33250",
+        "GBP/USD|1H|1783029600000|1.34350",
+        "GBP/USD|1H|1783137600000|1.33470",
+        "GBP/USD|1H|1783245600000|1.34570"
+      ],
+      "zoneDetail": [
+        {
+          "id": "GBP/USD|1H|1782921600000|1.33250",
+          "type": "DEMAND",
+          "top": 1.3424,
+          "bottom": 1.3325,
+          "classification": "BoM",
+          "formationMs": 1782921600000,
+          "originIdx": 10,
+          "bw": 99.0000000000002,
+          "bf": 0.6666666666666592,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "GBP/USD|1H|1783029600000|1.34350",
+          "type": "SUPPLY",
+          "top": 1.3435000000000001,
+          "bottom": 1.3336000000000001,
+          "classification": "BoM",
+          "formationMs": 1783029600000,
+          "originIdx": 40,
+          "bw": 99.0000000000002,
+          "bf": 0.6666666666666592,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "GBP/USD|1H|1783137600000|1.33470",
+          "type": "DEMAND",
+          "top": 1.3446,
+          "bottom": 1.3347,
+          "classification": "BoM",
+          "formationMs": 1783137600000,
+          "originIdx": 70,
+          "bw": 99.0000000000002,
+          "bf": 0.6666666666666592,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "GBP/USD|1H|1783245600000|1.34570",
+          "type": "SUPPLY",
+          "top": 1.3457000000000001,
+          "bottom": 1.3358,
+          "classification": "BoM",
+          "formationMs": 1783245600000,
+          "originIdx": 100,
+          "bw": 99.0000000000002,
+          "bf": 0.6666666666666592,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        }
+      ],
+      "verdicts": [
+        {
+          "pattern": "candle-pressure:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/candle-pressure.ts",
+            "machine": "candle-pressure",
+            "confidence": 0.6666666666666666,
+            "detail": "longWickWithoutReversal"
+          }
+        },
+        {
+          "pattern": "candle-shape:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/candle-shape.ts",
+            "machine": "candle-shape",
+            "confidence": 0.5,
+            "detail": "rwlSignature"
+          }
+        },
+        {
+          "pattern": "zone-classification:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/zone-classification.ts",
+            "machine": "zone-classification",
+            "confidence": 0.75,
+            "detail": "priorOppositeOrNone"
+          }
+        },
+        {
+          "pattern": "zone-pressure:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/zone-pressure.ts",
+            "machine": "zone-pressure",
+            "confidence": 0.75,
+            "detail": "virginZone"
+          }
+        },
+        {
+          "pattern": "shape-chain:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/shape-chain.ts",
+            "machine": "shape-chain",
+            "confidence": 0.6666666666666666,
+            "detail": "singleBsCandle"
+          }
+        },
+        {
+          "pattern": "obvious-trades:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/obvious-trades.ts",
+            "machine": "obvious-trades",
+            "confidence": 0.5,
+            "detail": "aggregate"
+          }
+        }
+      ]
+    },
+    "DXY": {
+      "pair": "DXY",
+      "bars": 120,
+      "zones": [
+        "DXY|1H|1782921600000|100.55000",
+        "DXY|1H|1783029600000|101.45000",
+        "DXY|1H|1783137600000|100.73000",
+        "DXY|1H|1783245600000|101.63000"
+      ],
+      "zoneDetail": [
+        {
+          "id": "DXY|1H|1782921600000|100.55000",
+          "type": "DEMAND",
+          "top": 101.36,
+          "bottom": 100.55,
+          "classification": "BoM",
+          "formationMs": 1782921600000,
+          "originIdx": 10,
+          "bw": 81.00000000000023,
+          "bf": 0.666666666666655,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "DXY|1H|1783029600000|101.45000",
+          "type": "SUPPLY",
+          "top": 101.45,
+          "bottom": 100.64,
+          "classification": "BoM",
+          "formationMs": 1783029600000,
+          "originIdx": 40,
+          "bw": 81.00000000000023,
+          "bf": 0.666666666666655,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "DXY|1H|1783137600000|100.73000",
+          "type": "DEMAND",
+          "top": 101.53999999999999,
+          "bottom": 100.72999999999999,
+          "classification": "BoM",
+          "formationMs": 1783137600000,
+          "originIdx": 70,
+          "bw": 81.00000000000023,
+          "bf": 0.666666666666655,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        },
+        {
+          "id": "DXY|1H|1783245600000|101.63000",
+          "type": "SUPPLY",
+          "top": 101.63000000000001,
+          "bottom": 100.82000000000001,
+          "classification": "BoM",
+          "formationMs": 1783245600000,
+          "originIdx": 100,
+          "bw": 81.00000000000023,
+          "bf": 0.666666666666655,
+          "prior": "NONE",
+          "tf": "1H",
+          "zfp": 0.5
+        }
+      ],
+      "verdicts": [
+        {
+          "pattern": "candle-pressure:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/candle-pressure.ts",
+            "machine": "candle-pressure",
+            "confidence": 0.6,
+            "detail": "bodyClosedThrough"
+          }
+        },
+        {
+          "pattern": "candle-shape:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/candle-shape.ts",
+            "machine": "candle-shape",
+            "confidence": 0.5,
+            "detail": "rwlSignature"
+          }
+        },
+        {
+          "pattern": "zone-classification:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/zone-classification.ts",
+            "machine": "zone-classification",
+            "confidence": 0.75,
+            "detail": "priorOppositeOrNone"
+          }
+        },
+        {
+          "pattern": "zone-pressure:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/zone-pressure.ts",
+            "machine": "zone-pressure",
+            "confidence": 0.75,
+            "detail": "virginZone"
+          }
+        },
+        {
+          "pattern": "shape-chain:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/shape-chain.ts",
+            "machine": "shape-chain",
+            "confidence": 0.6666666666666666,
+            "detail": "singleBsCandle"
+          }
+        },
+        {
+          "pattern": "obvious-trades:flagged",
+          "state": "CLASSIFIED",
+          "evidence": {
+            "file": "src/e1/machines/obvious-trades.ts",
+            "machine": "obvious-trades",
+            "confidence": 0.5555555555555556,
+            "detail": "aggregate"
+          }
+        }
+      ]
+    }
+  },
+  "journalRows": [
+    {
+      "seq": 0,
+      "ts": 1788542792115,
+      "run": "f288470962db80f9",
+      "node": "e1-pipeline:EUR/USD",
+      "kind": "verdict",
+      "verdict": "PASS",
+      "evidence": {
+        "pattern": "e1-pipeline:EUR/USD",
+        "state": "4 zones, 6 verdicts",
+        "anchor": "anchorMs=1783317600000"
+      },
+      "source": "src/e1/run-fixture.ts",
+      "prev": "genesis",
+      "self": "7eac58e98bfacfc10000010d00002093"
+    },
+    {
+      "seq": 1,
+      "ts": 1788542792116,
+      "run": "f288470962db80f9",
+      "node": "e1-pipeline:GBP/USD",
+      "kind": "verdict",
+      "verdict": "PASS",
+      "evidence": {
+        "pattern": "e1-pipeline:GBP/USD",
+        "state": "4 zones, 6 verdicts",
+        "anchor": "anchorMs=1783317600000"
+      },
+      "source": "src/e1/run-fixture.ts",
+      "prev": "7eac58e98bfacfc10000010d00002093",
+      "self": "87858a3019613d380000013f000026a1"
+    },
+    {
+      "seq": 2,
+      "ts": 1788542792117,
+      "run": "f288470962db80f9",
+      "node": "e1-pipeline:DXY",
+      "kind": "verdict",
+      "verdict": "PASS",
+      "evidence": {
+        "pattern": "e1-pipeline:DXY",
+        "state": "4 zones, 6 verdicts",
+        "anchor": "anchorMs=1783317600000"
+      },
+      "source": "src/e1/run-fixture.ts",
+      "prev": "87858a3019613d380000013f000026a1",
+      "self": "d92f4287962d479300000137000025a9"
+    }
+  ],
+  "totals": {
+    "pairs": 3,
+    "verdicts": 18
+  }
+}

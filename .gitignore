@@ -1,0 +1,23 @@
+# nested Plutus repo — independent lineage at PLUTUS/agent
+node_modules/
+dist/
+out/
+.worktrees/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.bin
+.env
+config.json
+.env.*
+*.log
+src/graphify-out/
+src/corbell-data/
+src/.trident/knowledge-graph/
+**/.corbell/
+data/rejected_setups/
+*.orig
+.DS_Store

@@ -1,0 +1,23 @@
+{
+  "runId": "audit-1788688162766",
+  "gate": "FINAL",
+  "phase": "done",
+  "huntersFulfilled": 14,
+  "huntersRejected": 3,
+  "candidatesSoFar": 507,
+  "artifactLabel": "[FINAL]",
+  "updatedAt": 1788688811525,
+  "targetRoot": "/home/leviathan/OPENCODE_WORKSPACE/Shared Workspace Context/Trident_Agent/Active_Projects/Plutus_Agent/src",
+  "graphState": {
+    "macro": {
+      "substrate": "corbell",
+      "nodes": 4508,
+      "edges": 8375
+    },
+    "micro": {
+      "nodes": 5745,
+      "edges": 13483,
+      "graphJson": "/home/leviathan/OPENCODE_WORKSPACE/Shared Workspace Context/Trident_Agent/Active_Projects/Plutus_Agent/src/graphify-out/graph.json"
+    }
+  }
+}

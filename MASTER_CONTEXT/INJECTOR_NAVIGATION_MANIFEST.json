@@ -1,0 +1,117 @@
+{
+  "$comment": "THE PLUTUS CONTEXT NAVIGATION MANIFEST \u2014 the graph drill-down index. Stage-3 of the bootload: after reading PLUTUS_MASTER_CONTEXT_INJECTOR.md, use these pre-wired queries for ANY drill-down. Each query is bounded (200-500 tokens) \u2014 NEVER read the 126MB shared.db, NEVER re-read the corpus docs. The graph paths are corbell-scope-era STALE \u2014 resolve by symbol name, never raw path.",
+  "graph": {
+    "db_path": ".trident/knowledge-graph/shared.db",
+    "live_fingerprint": "bc6ce1a0584a",
+    "driver": "bun:sqlite readonly (the sqlite3 CLI is ABSENT): new Database(path, {readonly:true})",
+    "stale_path_warning": "graph_nodes.file points at corbell-scope/ (a dead layout) and some line anchors have moved \u2014 resolve by node NAME, verify against the live tree, never trust the raw path",
+    "inventory": {
+      "nodes": 1940,
+      "edges": 3647,
+      "rule_cards": 5674,
+      "predicates": 4611,
+      "findings": 2126,
+      "node_kinds": {
+        "method": 1809,
+        "function": 74,
+        "class": 55,
+        "module": 2
+      },
+      "edge_kinds": {
+        "calls": 2562,
+        "traces_to": 1085
+      }
+    }
+  },
+  "start_here": {
+    "the_pipeline_entry": "SELECT name, file, line FROM graph_nodes WHERE name = 'buildE2Core' OR name = 'runChainV452' OR name = 'loadFixture'",
+    "the_frozen_pair": "SELECT name, file, line FROM graph_nodes WHERE name IN ('computeSL_LMV') -- sl-lmv.ts:177 verified live; trade-dedup by name 'dedup'",
+    "the_e2_injection": "SELECT name, file, line FROM graph_nodes WHERE name = 'injectShapeSequence'",
+    "the_tp_machine": "SELECT name, file, line FROM graph_nodes WHERE name = 'computeLmvTP' -- graph says mirror.ts:2968 STALE; live tree 1533-1591",
+    "canon_law_cards": "SELECT id, severity, quote, anchor FROM rule_cards ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END, CAST(id AS INTEGER) LIMIT 25",
+    "the_generation_pin": "SELECT battery_version, COUNT(*) FROM compiled_predicates GROUP BY 1 -- pin bc6ce1a0584a"
+  },
+  "drill_downs": [
+    {
+      "topic": "who calls a pipeline function (blast radius before an edit)",
+      "query": "SELECT n.name, n.file, n.line FROM graph_edges e JOIN graph_nodes n ON n.id = e.source_id JOIN graph_nodes t ON t.id = e.target_id WHERE t.name = $SYMBOL AND e.kind = 'calls'"
+    },
+    {
+      "topic": "the call chain between two functions",
+      "query": "the client verb chain($from, $to) via src/graph/client.ts (BFS depth<=64) OR the recursive calls-edge walk"
+    },
+    {
+      "topic": "the full canon quote behind a law",
+      "query": "SELECT quote, anchor, classification, severity FROM rule_cards WHERE quote LIKE '%' || $FRAGMENT || '%' LIMIT 5"
+    },
+    {
+      "topic": "all findings against a file (the enforcement history)",
+      "query": "SELECT severity, file, line, verdict, evidence FROM findings WHERE file LIKE '%' || $FILENAME || '%' ORDER BY created_at DESC LIMIT 20"
+    },
+    {
+      "topic": "a symbol's exact current location",
+      "query": "SELECT name, file, line FROM graph_nodes WHERE name = $SYMBOL -- THEN verify on the live tree: grep -n 'function $SYMBOL\\|$SYMBOL =' src/"
+    },
+    {
+      "topic": "everything a corpus section references",
+      "query": "the injector section's file:line anchors ARE the drill-down index \u2014 grep the anchor symbol in shared.db graph_nodes"
+    }
+  ],
+  "task_maps": {
+    "jesl_kernel_work": [
+      "injector ### 1.8 (search '### 1.8 THE JESL KERNEL LAW' \u2014 the kernel law section)",
+      "injector ### 5E (search '### 5E \u2014 THE JESL CONTRACTS' \u2014 the TS/JSON contracts)",
+      "query: SELECT name, line FROM graph_nodes WHERE name IN ('Executor','Journal','NodeRegistry') OR name LIKE 'defaultRegistry' OR name LIKE '%Node'"
+    ],
+    "e1_zone_engine_work": [
+      "injector ### 7.4 (ENGINE 1 \u2014 search '### 7.4 ENGINE 1')",
+      "injector ### 8.3 (the LMV machine \u2014 search '### 8.3 THE LMV MACHINE')",
+      "query: SELECT name, line FROM graph_nodes WHERE name IN ('buildChartModel','buildLmvTable','computeLmvTP','detectZonesObcv')"
+    ],
+    "e2_cascade_work": [
+      "injector \u00a71.4 (the D98 law)",
+      "injector \u00a78.4 (the mirror)",
+      "injector \u00a79.7 (the cascade)",
+      "query: name IN ('buildShapeChain','injectShapeSequence','cascadeShapeChain','selectPairNativeZone')"
+    ],
+    "e3_anchor_work": [
+      "injector \u00a79.6 (the ladder-steps + strength-edge)",
+      "injector \u00a78.8 (golden tier C)",
+      "query: name IN ('computeSL_LMV','computeLmvTP','entryPrice_LMV')"
+    ],
+    "testing_gate_work": [
+      "injector \u00a73 P3-1/P3-2 (the battery)",
+      "injector \u00a71.7 (the testing law)",
+      "query: rule_cards quote LIKE '%THREE pips%' OR quote LIKE '%golden%'"
+    ],
+    "graph_build_work": [
+      "injector \u00a712 (the graph layer + STALE evidence)",
+      "this manifest"
+    ]
+  },
+  "verify_protocol": {
+    "1_frozen_pair": "sha256sum src/mdve/sl-lmv.ts src/mdve/trade-dedup.ts -- 91294083.../33914c89...",
+    "2_kernel": "bun test src/jesl/ -- HELLO-GATE ALL GREEN",
+    "3_golden": "bun diag-reasoning-chain-golden.ts --day=2026-07-06 -- 5/5 + 8/10 gates",
+    "fail_action": "ANY drift \u2192 the injector's state is STALE \u2192 re-verify the drift, append a \u00a76 version line, THEN operate"
+  },
+  "_slice_markers": {
+    "_note": "the injector's Part-I law sections use '### N.N' headers inside '## \u00a7N' parents; the corpus layers use '## \u00a7N' \u2014 slice by the exact strings in this map",
+    "jesl": [
+      "### 1.8 THE JESL KERNEL LAW",
+      "### 1.9 THE BUILD-STATE LAW"
+    ],
+    "contracts": [
+      "### 5E \u2014 THE JESL CONTRACTS",
+      "### 5F \u2014 THE REFUSAL TOKENS"
+    ],
+    "e1": [
+      "### 7.4 ENGINE 1",
+      "### 7.5 ENGINE 2"
+    ],
+    "lmv": [
+      "### 8.3 THE LMV MACHINE",
+      "### 8.4 THE MIRROR CASCADE"
+    ]
+  }
+}
