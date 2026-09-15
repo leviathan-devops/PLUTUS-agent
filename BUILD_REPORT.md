@@ -193,3 +193,11 @@ Not ship. Reds: SC-21 1/5 + OUTCOME 0/4 + GATE-CLASS gate 2 (2 operator doctrine
 **Doctrine question #3 (operator):** does the V5 chain re-designate per day (the v4.5.3 regime behind the 12/21 fingerprint) or designate once per week? This owns SC-10/SC-18/SC-25's ≥15/21 legs through the V5 chain, independent of the two Monday questions.
 
 Not ship. Goal active.
+
+## 2026-09-15 WK2 per-day runner completed (orch audit, HEAD 8bf7ba9)
+
+The real-week runner's 5-day loop landed per machine contracts (shape carries DAY_OPEN-only, designation fresh/day, cascade freshCascade/day, kernel per-pair-per-day with day-namespaced causationIds; Thu/Fri lawfully EMPTY — the B.W3.1 dayTable has no R→BS/BS→WL edges, golden test pins both UNCHANGED). Comparator md5-identical; zero tuning.
+**Score identical to WK1: 1 HIT / 3 NEAR / 13 MISS — all 17 deltas pip-for-pip** (zones carry the single ≤anchor context; day-tagged setups reuse Monday's geometry — per-day levels need per-day zone contracts no machine offers).
+**Doctrine question #3 DECOMPOSED into two owned findings** (`.trident/wave-audit/WK2.md`): ③a spec B.W3.1 vs B.W3.5 contradiction (the mandated [SS,BS,R,BS,WL] sequence is unwalkable past Wed — missing day edges); ③b no per-day zone/session contract for the R17 "day native" regime. Both operator-owned; fix paths pre-scoped.
+
+Not ship. Reds: SC-21 1/5 + OUTCOME 0/4 + GATE-CLASS gate 2 (questions #1+#2) · SC-25 V5-chain 1/17 (question #3a+3b) · product_tui (gated) · SC-25 coverage (week-2 fixtures). Goal active.
