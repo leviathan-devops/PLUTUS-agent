@@ -70,6 +70,7 @@ import {
 } from './src/pipeline/golden-gate.js';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { decodeMarketData } from './src/e1/adapters/market-data-adapter.ts';
+import { FutureBarLeak } from './src/runtime/errors.ts';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -137,6 +138,44 @@ const barsFor = (p: string, tf: string, limitMs: number): OHLCBar[] =>
 const weekBarsFor = (p: string, tf: string): OHLCBar[] =>
   (weekRaw.find((r) => r.pair === p && r.timeframe === tf)?.bars ?? [])
     .sort((a, b) => a.timestamp - b.timestamp);
+
+function feedStats(feeds: RawFeed[]): { n: number; max_t: number } {
+  let n = 0, max_t = 0;
+  for (const f of feeds) {
+    for (const b of f.bars) {
+      n += 1;
+      if (b.timestamp > max_t) max_t = b.timestamp;
+    }
+  }
+  return { n, max_t };
+}
+const decisionStats = feedStats(raw);
+const weekStats = feedStats(weekRaw);
+console.log(`[FEED-SPLIT] decision ${DECISION_PATH} bars=${decisionStats.n} max_t=${decisionStats.max_t} le_anchor=${decisionStats.max_t <= ANCHOR_MS}`);
+console.log(`[FEED-SPLIT] week ${WEEK_PATH} bars=${weekStats.n} max_t=${weekStats.max_t} gt_anchor=${weekStats.max_t > ANCHOR_MS}`);
+
+let feedSplitWeekThrow = false;
+const dxyDecision = raw.find((f) => f.pair === 'DXY' && f.timeframe === '1H');
+const dxyWeek = weekRaw.find((f) => f.pair === 'DXY' && f.timeframe === '1H');
+if (!dxyDecision?.bars.length) throw new Error('[FEED-SPLIT] decision DXY 1H missing');
+if (!dxyWeek?.bars.length) throw new Error('[FEED-SPLIT] week DXY 1H missing');
+const nDecision = decodeMarketData(dxyDecision.bars, ANCHOR_MS).length;
+console.log(`[FUTURE_BAR_LEAK] decision DXY 1H PASS n=${nDecision} t<=${ANCHOR_MS}`);
+try {
+  decodeMarketData(dxyWeek.bars, ANCHOR_MS);
+  console.log('[FUTURE_BAR_LEAK] week DXY 1H FAIL-PAPER: expected throw, got pass');
+} catch (err) {
+  feedSplitWeekThrow = err instanceof FutureBarLeak || String(err).includes('FUTURE_BAR_LEAK');
+  console.log(`[FUTURE_BAR_LEAK] week DXY 1H THROW ${feedSplitWeekThrow ? 'FUTURE_BAR_LEAK' : String(err)} (honest — week is outcome-only)`);
+}
+const feedSplitIssues: Array<{ stage: string; detail: string }> = [];
+if (!feedSplitWeekThrow) {
+  feedSplitIssues.push({ stage: 'FEED-SPLIT', detail: 'week DXY 1H decodeMarketData did not throw FutureBarLeak — papered split' });
+}
+if (decisionStats.max_t > ANCHOR_MS) {
+  feedSplitIssues.push({ stage: 'FEED-SPLIT', detail: `named live decision max_t=${decisionStats.max_t} > ANCHOR_MS` });
+}
+
 const spotFor = (p: string, limitMs: number): number => {
   // THE ANALYSIS-POINT SPOT (the §2.1 semantic — the W1 fix): the last 1H
   // close at/before the anchor = the 05:00 bar's close for the 06:00 point.
@@ -152,7 +191,7 @@ const spotFor = (p: string, limitMs: number): number => {
 // candle-pressure Phase-A throw in buildChartModel, the W5-W7 setup-gen.ts
 // slLmvDistPips null-deref — wave fix targets, reported, never fatal to the
 // harness.
-const pipelineErrors: Array<{ stage: string; detail: string }> = [];
+const pipelineErrors: Array<{ stage: string; detail: string }> = [...feedSplitIssues];
 async function guardStage<T>(stage: string, fn: () => T | Promise<T>, fallback: T): Promise<T> {
   try {
     return await fn();
@@ -827,6 +866,7 @@ if (!pipeOk) {
 console.log(`  determinism ×2: ${determinismOk ? 'PASS' : 'FAIL'} · frozen pair: ${frozenOk ? 'PASS' : 'FAIL'} · total wall: ${(totalWallMs / 1000).toFixed(1)}s`);
 console.log(`  OUTCOME GATE: ${outcomeWins}${outcomeResolved > 0 ? '/' + outcomeResolved : ''} wins — the acceptance: ≥ ${OUTCOME_WINS_REQUIRED}/6 — ${outcomeOk ? 'PASS' : 'FAIL'}`);
 console.log(`  golden convergence: ${goldenHits}/${goldenTotal}`);
+console.log(`  FEED-SPLIT: decision max_t=${decisionStats.max_t} le_anchor=${decisionStats.max_t <= ANCHOR_MS} · week max_t=${weekStats.max_t} gt_anchor=${weekStats.max_t > ANCHOR_MS} · week FutureBarLeak throw=${feedSplitWeekThrow}`);
 console.log(`  THE EXIT: ${allGreen ? 'exit 0 — ALL G1-G10 + A1-A7 PASS' : 'exit 1 — the failing gates/scenarios above MUST be fixed (the harness proves the gates CAN fail)'}`);
 console.log('═══════════════════════════════════════════════════════════════════════');
 
