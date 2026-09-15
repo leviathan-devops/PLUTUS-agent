@@ -153,3 +153,26 @@ Not ship. Goal active.
 Full lock-dir sweep (`src/{e1,e2,card,visual,aether,kernel,enforcement}`, non-test) found exactly ONE golden-level echo: `src/e1/tests/fixtures.ts:119` — a synthetic defendFixture bar on the 1.14110 axis. Desk `SC26Reaxis` re-axised it −0.05000 → 1.09110 (single line; consumers mapped; a try-then-revert experiment proved the sibling test literals are golden-week.json ORACLE truth, not fixture echoes). **Sweep now ZERO non-test hits**; the 22 remaining pattern hits are ALL inside `*.test.ts` as oracle data — exactly what the anti-cheat gate allows (oracle + harness, never the emission path). Walls unchanged: e1 398/0, src 1184/0, tsc clean, frozen MATCH.
 
 Not ship. Goal active.
+
+## 2026-09-15 SC TABLE refresh (orch battery, HEAD 8fe1ad9 — post-F4/F4B/F4C/SC26)
+
+Every measurable SC re-run at current HEAD after the fixture upgrade + re-axis:
+
+| SC | Result (this HEAD) |
+|---|---|
+| SC-1 tsc | clean (`tsc --noEmit` exit 0) |
+| SC-2 e1 properties | inside e1 wall 398/0 (18 files, 500-run loops) |
+| SC-3/SC-4 run-fixture | `pairs=3 zones=6 verdicts=18 zonesWithoutVerdicts=0 chainValid=true` |
+| SC-5 FUTURE_BAR_LEAK | 16/0 (future-bar-leak.test.ts) |
+| SC-8 side-inversion mutant law | e2 wall 276/0 (20 files) |
+| SC-13/14/15 card | 50/0 (4 files) |
+| SC-16 journal legs | 15/0 (trade-computer.test.ts incl. SC-16 suite) |
+| SC-20 report | `53d7f9d8…` ×2 deterministic (F4C baseline) |
+| SC-23 validator | report-validator tests green inside src wall 1184/0 |
+| SC-26 price-anchor | **0 non-test lock-dir hits** (strict sweep post-re-axis) |
+| SC-27 killed patterns | 0 (3d4ece8 verdict stands; no lock-code changes since) |
+| SC-19 frozen | MATCH (`91294083…` / `33914c89…`) |
+
+Still red, all doctrine-blocked (F4B audit): SC-21 1/5, OUTCOME 0/4 (measurable, TRUE), GATE-CLASS gate 2 (G1/G4 + Monday), product_tui (gated). SC-25: ratio+floor PASS, coverage data-blocked. SC-24: infra-unrunnable (graph client). SC-11/SC-22: covered by W4/W6 audits + src wall.
+
+Not ship. Goal active.
