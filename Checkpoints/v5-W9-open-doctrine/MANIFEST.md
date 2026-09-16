@@ -37,4 +37,5 @@ F4 (712c3de): LTF harvest, slots filled, lmv-fx 13→14 · F4B (f8d9dca): causal
 
 ## Restore
 
+**Durability (2026-09-16):** all five fixture files are now ALSO in-repo at `Checkpoints/v5-W9-open-doctrine/fixture-backup/` (md5-verified against /tmp: canon `195351fa`, `.bak-f4` `2b34f038`, `.bak-f4c` `2c05a921`, raws `5de2ae4e`/`38c76d3d`) — /tmp is ephemeral; restore = copy back or `git checkout` this path.
 `git -C . checkout 028408a` (this tree) · fixture: current /tmp file is the canon-span one; pre-F4 = `.bak-f4`, post-F4/pre-F4C = `.bak-f4c` · venv: /tmp/opencode/f4venv (tvdatafeed-2.1.0 fork).
